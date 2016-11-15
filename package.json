@@ -1,0 +1,26 @@
+{
+  "name": "@ama-team/voxengine-scenario-framework",
+  "version": "0.1.0",
+  "description": "Framework to run VoxImplant scenarios",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com:ama-team/voxengine-scenario-framework.git"
+  },
+  "keywords": [
+    "voxengine",
+    "voximplant"
+  ],
+  "author": "AMA Team <dev@amagroup.ru>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ama-team/voxengine-scenario-framework/issues"
+  },
+  "homepage": "https://github.com/ama-team/voxengine-scenario-framework#readme",
+  "devDependencies": {
+    "@ama-team/voxengine-sdk": "git://github.com/ama-team/voxengine-definitions.git#dev"
+  }
+}
