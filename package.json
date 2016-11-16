@@ -6,21 +6,38 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "engines": {},
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@github.com:ama-team/voxengine-scenario-framework.git"
+    "url": "https://github.com/ama-team/voxengine-scenario-framework.git"
   },
   "keywords": [
     "voxengine",
     "voximplant"
   ],
-  "author": "AMA Team <dev@amagroup.ru>",
+  "author": {
+    "name": "AMA Team",
+    "email": "dev@amagroup.ru"
+  },
+  "maintainers": [
+    {
+      "name": "Etki",
+      "email": "etki@etki.me"
+    }
+  ],
+  "contributors": [
+    {
+      "name": "Etki",
+      "email": "etki@etki.me"
+    }
+  ],
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/ama-team/voxengine-scenario-framework/issues"
   },
   "homepage": "https://github.com/ama-team/voxengine-scenario-framework#readme",
+  "dependencies": {},
   "devDependencies": {
-    "@ama-team/voxengine-sdk": "git://github.com/ama-team/voxengine-definitions.git#dev"
+    "@ama-team/voxengine-definitions": "ama-team/voxengine-definitions#dev"
   }
 }

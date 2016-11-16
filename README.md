@@ -3,25 +3,49 @@
 This repository is dedicated for a simple framework that runs VoxEngine
 scenarios.
 
-## Conventions
+## Diving in
 
 This framework represents scenario as a set of states, only one of which
-can be active in any moment, with transitions between states. 
+can be active in any moment, with transitions - and transition here 
+means a piece of code that would enforce that state (more precise,
+transition is a function that receives current scenario run as this and
+returns `Promise` which will be resolved once state is achieved). When
+scenario is loaded, framework determines entrypoint state, transitions 
+to it (i.e. executes transition function and waits for `Promise` 
+resolve), and continues traversing states until final state is reached, 
+and then terminates scenario.
 
-This is somewhat related to FSM, but far from things you're thinking
-about:
+Every state contains `.transition(previousState, hints)` method, and,
+optionally `.abort(overridingState, hints)` method, both of which have 
+to return successfully resolving promises (if `.abort()` promise 
+rejects, it is simply logged, while `.transition()` promise reject is 
+considered scenario fail and causes termination). While `.transition()`
+method performs actions required to bring scenario into target state,
+`.abort()` is used when it is required to abort unfinished transaction.
+Current scenario run is accessible as `this` for both `.transition()` 
+and `.abort()`, and `hints` is a (mostly) user-defined object that can
+contain additional hints about how transition should occur.
 
-- There are no constraints on which state transitions: each state may 
-transition into other one, except for final states. This is a trade-off
-(each transition has to implement conditional logic in case it has state
-may be transitioned to from multiple points), but i couldn't come with
-anything better that wouldn't provide fierce burst of transition
-handling code or 'no transition defined for state X -> state Y' errors
-in runtime.
-- Scenario transitions are written right into states (i.e. "execute
-this code to transition in me"), and those transitions are not
-side-effect free, as well as rules for those transitions may be
-non-deterministic.
+State transition consists of state's `.transition()` method execution, 
+and it may be invoked in two ways:
+
+- If previous transition has returned object with `trigger` property,
+transition for state that was described in `trigger` object would be 
+invoked. That makes easy to make straightforward scenarios that just 
+progress through.
+- If current scenario run receives `.transitionTo` call with object,
+identifying next state. This may be useful to trigger states based on 
+callbacks.
+
+Because of scenario complexity, it is possible that second transition 
+may start while first one hasn't ended. In that case framework will 
+execute `.abort()` method of state of first transition, and invoke 
+second transition without waiting for `.abort()` to finish.
+
+Some parts of this may sound like good old FSM, but it's formally quite 
+far from one.
+
+## Example
 
 Let's come up with a simple example:
 
@@ -68,7 +92,7 @@ var framework = require('@ama-team/voxengine-scenario-framework'),
         trigger: framework.TriggerType.Http
     };
 
-framework.run(scenario);
+framework.prepare(scenario).run();
 ```
 
 While it's obviously huge in term of lines, it's still simple and
@@ -109,11 +133,10 @@ instruction
 in event
 - When promise resolves, understand that state is marked as final and
 trigger termination sequence
-- Termination sequence itself consists of waiting for termination hooks,
-which are promises that have to resolve (e.g. you may want to wait until 
-all HTTP requests complete), then executing `onTermination` function and 
-waiting for promise to resolve (you may want to record/print out 
-scenario duration), then, finally, calling `VoxEngine.terminate()`.
+- Termination sequence itself consists of executing `onTermination`
+function and waiting for promise to resolve (you may want to log some
+data or wait for HTTP requests to finish), then, finally,
+calling `VoxEngine.terminate()`.
 
 Logic is a little bit more complex (e.g. there are arguments in 
 `transition()` function, simultaneous transitions, abort process, 
@@ -125,11 +148,12 @@ Please note that until version 1.0.0 all minor versions
 'pre-stable major versions') and text above may change from version to
 version. I'll try to keep API as stable as possible.
 
-## Usage
-
 ## Schema
 
-### Scenario
+### ScenarioDeclaration
+
+Scenario declaration simply states facts about scenario, such as name,
+version, timeouts and states that scenario may come into.
 
 ```js
 {
@@ -137,43 +161,62 @@ version. I'll try to keep API as stable as possible.
     version: '0.1.0', // optional as well,
     environment: <anything>, // optional, used for logging, so you'll want to set it to staging/production/etc.
     states: [], // see below
-    entrypoint: {
-        name: '<state name>', // mandatory
-        stage: '<stage id>' // optional, see below
-    }
-    terminationHooks: [], // list of promises required for scenario to finish, optional
     onTermination: function () {}, // function that will be called before termination, optional
     trigger: 'Call', // or 'Http', mandatory.
     timeouts: {
         onTermination: 60000,
-        terminationHooks: 60000,
         transition: 10000, // default transition timeout, may be overriden per-state
+        abort: 10000, // default aboty timeout, may be overriden per-state
         state: 60000, // default state timeout, may be overriden per-state
     }
 }
 ```
 
-### State
+Scenario will be automatically validated before each run, so if you set 
+something wrong, validator will simply shout at you. To prevent 
+happening this at runtime, you may validate your scenarios locally 
+before pushing them, see [Validation](#validation) section.
 
+### StateDeclaration
+
+State represents single state scenario may transition into.
 
 ```js
 {
     name: 'initialized',
     stage: 'initialization,
     transition: function (previousState, hints, cancellationToken) {},
-    abort: function (overridingState, hints) {},
-    onTimeout: function() {},
-    entrypoint: false,
-    terminal: false,
+    abort: function (overridingState, hints) {}, // optional, but recommended
+    entrypoint: false, // whether is first state in scenario
+    terminal: false, // whether scenario should be shut down after reaching that state
+
+    // if this is set and state timeout is reached, this function may
+    // return <TriggerDeclaration> that will enforce state transition
+    // instead of immediate termination
+    onTimeout: function () {},
     timeouts: {
-        transition: 10000,
-        abort: 10000,
-        self: -1
+        transition: 10000, // how long may transition last, 0 or less for unlimited wait
+        abort: 10000, // same for abort
+        self: -1 // how many time scenario is allowed to stay in this state?
     }
 }
 ```
 
+### TriggerDeclaration
+
+Explains to framework what to trigger next
+
+```js
+{
+    name: '<state name>',
+    stage: '<stage id>',
+    hints: <user-defined object>
+}
+```
+
 ### TransitionResult
+
+Transition result is a structure returned by transition promise
 
 ```js
 {
@@ -181,13 +224,18 @@ version. I'll try to keep API as stable as possible.
         name: '<state name>',
         stage: '<stage id>'
     },
-    trigger: {
-        name: '<state name>',
-        stage: '<stage id>',
-        hints: <user-defined object>
-    }
+    trigger: <TriggerDeclaration>
 }
 ```
+
+If `.transitionedTo` is set, it is used to determine current state 
+(instead of using state whose `.transition()` was called).
+
+If `.trigger` is set, framework instantly triggers next transition.
+
+### ScenarioRun
+
+TBD
 
 ## Validation
 
@@ -202,6 +250,7 @@ var framework = require('@ama-team/voxengine-scenario-framework'),
 ```
 
 validation result looks like this:
+
 ```js
 {
     valid: true,
@@ -211,15 +260,33 @@ validation result looks like this:
 }
 ```
 
+Please note that `valid` property is not the same as `violations`
+property emptiness, some reported violations may not convert scenario to
+invalid one.
+
+## Timeouts
+
+As you may have seen though the document, nearly every action has a 
+configurable timeout. Since hand-generated promises are used 
+extensively, it is terribly easy to leave unresolvable promise behind
+that would prevent scenario from successful completion and may drain
+your money. Because of that framework enforces timing constraints on
+most of tasks, leaving you an option to configure them more precisely.
+
 ## Concurrency notes
 
 TBD
 
 ## Other notes
 
-- We have a package `@ama-team/voxengine-reference` that contains jsdoc
+- Please note that at the moment of this document being written ES6
+**had not been supported by VoxImplant**. While you can use transpiler
+to transform your scripts to ES5, i personally recommended not to use
+ES6 until it is officially supported and write everything in ES5 - it
+may save you nerves during debug.
+- We have a package `@ama-team/voxengine-references` that contains jsdoc
 definitions for VoxEngine internals. Be sure to install it if you need
-autocompletion in other than official web UI IDE.
+autocompletion in IDE other than provided by official web UI.
 - Check `@ama-team/voximplant-publisher` as well
 - We have plans for automated runner and any testing framework
 integration but oh god where do we get such amount of time
