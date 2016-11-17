@@ -58,7 +58,7 @@ var framework = require('@ama-team/voxengine-scenario-framework'),
                 entrypoint: true,
                 transition: function () {
                     // wrapping http request in promise
-                    return new Promise(...)
+                    return Net.httpRequestAsync(blah, blah)
                         .then(function (data) { this.data.callee = data.callee })
                         // force transition to another state as soon as this one was reached
                         .then(function (_) { return { trigger: { name: 'called' } } });
@@ -184,7 +184,7 @@ State represents single state scenario may transition into.
 ```js
 {
     name: 'initialized',
-    stage: 'initialization,
+    stage: 'initialization',
     transition: function (previousState, hints, cancellationToken) {},
     abort: function (overridingState, hints) {}, // optional, but recommended
     entrypoint: false, // whether is first state in scenario
