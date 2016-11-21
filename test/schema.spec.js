@@ -1,8 +1,20 @@
 var schema = require('../lib/schema'),
+    concurrent = require('../lib/utility/concurrent'),
     chai = require('chai'),
-    expect = chai.expect;
+    expect = chai.expect,
+    assert = chai.assert;
 
 chai.should();
+
+function FakeCancellationToken() {
+    this.isCancelled = function () {
+        return false;
+    }
+}
+
+function TestingException() {
+
+}
 
 describe('schema', function () {
     describe('.normalizeStateId', function () {
@@ -129,6 +141,65 @@ describe('schema', function () {
                 expect(value).to.exist;
                 expect(value).to.be.equal(value);
             })
+        });
+
+        it('should set up .onTransitionTimeout handler', function () {
+            var state = schema.normalizeState({id: 'id'}),
+                error = new TestingException(),
+                promise;
+
+            assert(state.onTransitionTimeout);
+            state.onTransitionTimeout.should.be.instanceof(Function);
+            promise = state.onTransitionTimeout.call(null, null, null, new FakeCancellationToken(), error);
+            promise.should.be.instanceof(Promise);
+            return promise.then(function () {
+                assert.fail('this branch should have never been executed');
+            }, function (e) {
+                e.should.be.equal(error);
+            });
+        });
+
+        it('should set up .abort handler', function () {
+            var state = schema.normalizeState({id: 'id'}),
+                promise;
+
+            assert(state.abort);
+            state.abort.should.be.instanceof(Function);
+            promise = state.abort.call(null, null, null, new FakeCancellationToken());
+            promise.should.be.instanceof(Promise);
+            return promise;
+        });
+
+        it('should set up .onAbortTimeout handler', function () {
+            var state = schema.normalizeState({id: 'id'}),
+                error = new TestingException(),
+                promise;
+
+            assert(state.onAbortTimeout);
+            state.onAbortTimeout.should.be.instanceof(Function);
+            promise = state.onAbortTimeout.call(null, null, null, null, error);
+            promise.should.eventually.be.instanceof(Promise);
+            return promise.then(function () {
+                assert.fail('this branch should have never been executed');
+            }, function (e) {
+                e.should.be.equal(error);
+            });
+        });
+
+        it('should set up .onTimeout handler', function () {
+            var state = schema.normalizeState({id: 'id'}),
+                error = new TestingException(),
+                promise;
+
+            assert(state.onTimeout);
+            state.onTimeout.should.be.instanceof(Function);
+            promise = state.onTimeout.call(null, null, null, null, error);
+            promise.should.eventually.be.instanceof(Promise);
+            return promise.then(function () {
+                assert.fail('this branch should have never been executed');
+            }, function (e) {
+                e.should.be.equal(error);
+            });
         });
     });
 
@@ -300,6 +371,46 @@ describe('schema', function () {
 
             validationResult.valid.should.be.true;
             validationResult.violations.should.be.empty;
+        });
+
+        it('should report missing state id', function () {
+            var scenario = {
+                    states: [
+                        {
+                            id: null,
+                            entrypoint: true
+                        },
+                        {
+                            id: 'terminated',
+                            terminal: true
+                        }
+                    ],
+                    trigger: schema.TriggerType.Http
+                },
+                validationResult = schema.validateScenario(scenario);
+
+            validationResult.valid.should.be.false;
+            validationResult.violations.states.should.not.be.empty;
+        });
+
+        it('should report empty state id', function () {
+            var scenario = {
+                    states: [
+                        {
+                            id: '',
+                            entrypoint: true
+                        },
+                        {
+                            id: 'terminated',
+                            terminal: true
+                        }
+                    ],
+                    trigger: schema.TriggerType.Http
+                },
+                validationResult = schema.validateScenario(scenario);
+
+            validationResult.valid.should.be.false;
+            validationResult.violations.states.should.not.be.empty;
         });
     })
 });

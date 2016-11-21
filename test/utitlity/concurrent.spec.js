@@ -1,5 +1,6 @@
-var concurrent = require('../../lib/utility/concurrent');
-    chai = require('chai');
+var concurrent = require('../../lib/utility/concurrent'),
+    chai = require('chai'),
+    assert = chai.assert;
 
 chai.should();
 
@@ -8,20 +9,17 @@ describe('utility', function () {
        describe('.timeout', function () {
            it('should successfully timeout', function () {
                var promise = concurrent.timeout(new Promise(function () {}), 1);
-               return promise.then(function (value) {
-                   throw {
-                       name: 'UnexpectedPathException',
-                       message: 'This should have not executed'
-                   }
+               return promise.then(function () {
+                   assert('this branch should have not been executed');
                }, function (rejection) {
                    rejection.should.be.instanceof(concurrent.TimeoutException);
                });
            });
        });
 
-       describe('.ControlledPromise', function () {
+       describe('.CompletablePromise', function () {
            it('should resolve externally', function () {
-               var promise = new concurrent.ControlledPromise();
+               var promise = new concurrent.CompletablePromise();
                promise.resolve(12);
                return promise.then(function (value) {
                    value.should.be.equal(12);
@@ -29,20 +27,17 @@ describe('utility', function () {
            });
 
            it('should reject externally', function () {
-               var promise = new concurrent.ControlledPromise();
+               var promise = new concurrent.CompletablePromise();
                promise.reject(12);
-               return promise.then(function (value) {
-                   throw {
-                       name: 'UnexpectedPathException',
-                       message: 'This should have not executed'
-                   }
+               return promise.then(function () {
+                   assert('this branch should have not been executed');
                }, function (value) {
                    value.should.be.equal(12);
                });
            });
 
            it('should resolve once', function () {
-               var promise = new concurrent.ControlledPromise();
+               var promise = new concurrent.CompletablePromise();
                promise.resolve(12);
                promise.resolve(42);
                return promise.then(function (value) {
