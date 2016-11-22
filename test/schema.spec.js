@@ -194,13 +194,26 @@ describe('schema', function () {
             assert(state.onTimeout);
             state.onTimeout.should.be.instanceof(Function);
             promise = state.onTimeout.call(null, null, null, null, error);
-            promise.should.eventually.be.instanceof(Promise);
             return promise.then(function () {
                 assert.fail('this branch should have never been executed');
             }, function (e) {
                 e.should.be.equal(error);
             });
         });
+
+        it('should install correct onTransitionTimeout handler', function () {
+            var error = new concurrent.TimeoutException('Testing exception flow'),
+                state = schema.normalizeState({id: 'id'}),
+                promise = state.onTransitionTimeout.call(null, null, null, null, error);
+
+            promise.should.be.instanceof(Promise);
+            return promise.then(function () {
+                assert.fail('this branch should have never been executed');
+            }, function (e) {
+                e.should.be.equal(error);
+            })
+        });
+
     });
 
     describe('.normalizeScenario', function () {

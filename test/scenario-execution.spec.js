@@ -4,15 +4,10 @@ var ScenarioExecution = require('../lib/scenario-execution').ScenarioExecution,
     chai = require('chai'),
     assert = chai.assert,
     chaiAsPromised = require('chai-as-promised'),
-    sinon = require('sinon');
+    sinon = require('sinon'),
+    loggers = require('@ama-team/voxengine-sdk').loggers;
 
 chai.use(chaiAsPromised);
-
-function TestingException(message) {
-    this.name = 'TestingException';
-    this.message = message;
-    this.stack = (new Error()).stack;
-}
 
 // todo: not good
 
@@ -23,12 +18,51 @@ global.VoxEngine = {
 };
 
 describe('scenario-execution', function () {
+    var logs,
+        writer,
+        logger,
+        factory,
+        infinitePromise = new Promise(function () {});
+
+    function TestingException(message) {
+        this.name = 'TestingException';
+        this.message = message;
+        this.stack = (new Error()).stack;
+    }
+
+    beforeEach(function () {
+        logs = [];
+        writer = {
+            write: function (message) {
+                logs.push(message);
+            }
+        };
+        logger = new loggers.slf4j(writer, loggers.LogLevel.ALL);
+        factory = function (scenario) {
+            var context = {
+                container: {
+                    logger: logger
+                }
+            };
+            return new ScenarioExecution(scenario, context);
+        };
+    });
+
+    afterEach(function () {
+        if (!('allure' in global)) {
+            return;
+        }
+        if (logs.length > 0) {
+            allure.createAttachment('log.txt', logs.join('\n'), 'text/plain')
+        }
+    });
 
     describe('interface verification', function () {
 
         it('should execute simple scenario', function () {
             var transitionA = sinon.stub(),
                 transitionB = sinon.stub(),
+                onTermination = sinon.stub(),
                 scenario = {
                     states: [
                         {
@@ -42,16 +76,19 @@ describe('scenario-execution', function () {
                             transition: transitionB
                         }
                     ],
+                    onTermination: onTermination,
                     trigger: schema.TriggerType.Http
                 },
-                execution = new ScenarioExecution(scenario);
+                execution = factory(scenario);
 
             transitionA.returns(Promise.resolve({trigger: 'terminated'}));
             transitionB.returns(Promise.resolve({}));
+            onTermination.returns(Promise.resolve({}));
             return execution.run()
                 .then(function () {
                     assert(transitionA.calledOnce);
                     assert(transitionB.calledOnce);
+                    assert(onTermination.calledOnce);
                     execution.getCurrentState().id.should.be.equal(scenario.states[1].id);
                 });
         });
@@ -72,7 +109,7 @@ describe('scenario-execution', function () {
                     ],
                     trigger: schema.TriggerType.Http
                 },
-                execution = new ScenarioExecution(scenario);
+                execution = factory(scenario);
 
             return execution.run()
                 .then(function () {
@@ -98,7 +135,7 @@ describe('scenario-execution', function () {
                     ],
                     trigger: schema.TriggerType.Http
                 },
-                execution = new ScenarioExecution(scenario);
+                execution = factory(scenario);
 
             transitionA.returns({trigger: 'terminated'});
             transitionB.returns({});
@@ -126,7 +163,7 @@ describe('scenario-execution', function () {
                     ],
                     trigger: schema.TriggerType.Http
                 },
-                execution = new ScenarioExecution(scenario);
+                execution = factory(scenario);
 
             transitionA.returns({trigger: 'terminated'});
             transitionB.returns(undefined);
@@ -175,7 +212,7 @@ describe('scenario-execution', function () {
                     ],
                     trigger: schema.TriggerType.Http
                 },
-                execution = new ScenarioExecution(scenario);
+                execution = factory(scenario);
 
             transitionA.returns({trigger: 'stage-b:transitioned'});
             transitionB.returns({trigger: 'relocated'});
@@ -215,7 +252,7 @@ describe('scenario-execution', function () {
                     ],
                     trigger: schema.TriggerType.Http
                 },
-                execution = new ScenarioExecution(scenario);
+                execution = factory(scenario);
 
             return execution.run();
         });
@@ -248,7 +285,7 @@ describe('scenario-execution', function () {
                     ],
                     trigger: schema.TriggerType.Http
                 },
-                execution = new ScenarioExecution(scenario);
+                execution = factory(scenario);
 
             return execution.run().should.eventually.be.rejected;
         });
@@ -279,7 +316,7 @@ describe('scenario-execution', function () {
                     ],
                     trigger: schema.TriggerType.Http
                 },
-                execution = new ScenarioExecution(scenario);
+                execution = factory(scenario);
 
             abortHandler.returns(Promise.reject({}));
 
@@ -310,7 +347,7 @@ describe('scenario-execution', function () {
                     onTermination: terminationHandler,
                     trigger: schema.TriggerType.Http
                 },
-                execution = new ScenarioExecution(scenario);
+                execution = factory(scenario);
 
             return execution.run().then(function () {
                 assert.fail('This branch should have never been executed');
@@ -321,21 +358,22 @@ describe('scenario-execution', function () {
 
 
         it('should pass the same hints to .transition, .abort and timeout handlers', function () {
-            var transitionHandler = sinon.stub(),
-                abortHandler = sinon.stub(),
-                interceptTransitionTimeoutHandler = sinon.stub(),
-                abortTimeoutHandler = sinon.stub(),
-                timeoutHandler = sinon.stub(),
-                interceptTransitionHandler = sinon.stub(),
+            var initializeTransitionHandler = sinon.stub().returns(new Promise(function () {})),
+                initializeAbortHandler = sinon.stub().returns(new Promise(function () {})),
+                initializeAbortTimeoutHandler = sinon.stub().returns(Promise.resolve({})),
+                interceptTransitionHandler = sinon.stub().returns(new Promise(function () {})),
+                interceptTransitionTimeoutHandler = sinon.stub().returns(Promise.resolve({})),
+                interceptTimeoutHandler = sinon.stub().returns(Promise.resolve({trigger: 'terminated'})),
+                terminalTransitionHandler = sinon.stub().returns(Promise.resolve({})),
                 hints = {x: 12},
                 scenario = {
                     states: [
                         {
                             id: 'initialized',
                             entrypoint: true,
-                            transition: transitionHandler,
-                            abort: abortHandler,
-                            onAbortTimeout: abortTimeoutHandler,
+                            transition: initializeTransitionHandler,
+                            abort: initializeAbortHandler,
+                            onAbortTimeout: initializeAbortTimeoutHandler,
                             timeouts: {
                                 transition: 1,
                                 onTransitionTimeout: null,
@@ -346,30 +384,21 @@ describe('scenario-execution', function () {
                             id: 'intercept',
                             transition: interceptTransitionHandler,
                             onTransitionTimeout: interceptTransitionTimeoutHandler,
-                            onTimeout: timeoutHandler,
+                            onTimeout: interceptTimeoutHandler,
                             timeouts: {
-                                self: 1,
+                                state: 1,
                                 transition: 1
                             }
                         },
                         {
                             id: 'terminated',
                             terminal: true,
-                            transition: function () {
-                                return Promise.resolve({});
-                            }
+                            transition: terminalTransitionHandler
                         }
                     ],
                     trigger: schema.TriggerType.Http
                 },
-                execution = new ScenarioExecution(scenario);
-
-            transitionHandler.returns(new Promise(function () {}));
-            abortHandler.returns(new Promise(function () {}));
-            abortTimeoutHandler.returns(Promise.resolve({}));
-            interceptTransitionHandler.returns(new Promise(function () {}));
-            interceptTransitionTimeoutHandler.returns(new Promise(function () {}));
-            timeoutHandler.returns(Promise.resolve({trigger: 'terminated'}));
+                execution = factory(scenario);
 
             execution.transitionTo('default', 'initialized', hints);
 
@@ -378,12 +407,13 @@ describe('scenario-execution', function () {
                     return execution.getCompletionHook;
                 })
                 .then(function () {
-                    transitionHandler.getCall(0).args[1].should.be.equal(hints);
-                    abortHandler.getCall(0).args[1].should.be.equal(hints);
-                    abortTimeoutHandler.getCall(0).args[1].should.be.equal(hints);
+                    initializeTransitionHandler.getCall(0).args[1].should.be.equal(hints);
+                    initializeAbortHandler.getCall(0).args[1].should.be.equal(hints);
+                    initializeAbortTimeoutHandler.getCall(0).args[1].should.be.equal(hints);
                     interceptTransitionHandler.getCall(0).args[1].should.be.equal(hints);
                     interceptTransitionTimeoutHandler.getCall(0).args[1].should.be.equal(hints);
-                    timeoutHandler.getCall(0).args[1].should.be.equal(hints);
+                    assert(interceptTimeoutHandler.getCall(0));
+                    interceptTimeoutHandler.getCall(0).args[1].should.be.equal(hints);
                 });
         });
     });
@@ -393,28 +423,34 @@ describe('scenario-execution', function () {
         describe('scenario', function () {
 
             it('should timeout excessively long scenario', function () {
-                var scenario = {
+                var transitionHandler = sinon.stub().returns(infinitePromise),
+                    timeoutHandler = sinon.stub().returns(Promise.resolve({})),
+                    scenario = {
                         states: [
                             {
                                 id: 'initialized',
                                 entrypoint: true,
-                                transition: function () {
-                                    return new Promise(function () {});
-                                }
+                                transition: transitionHandler
                             },
                             {
                                 id: 'terminated',
                                 terminal: true
                             }
                         ],
+                        onTimeout: timeoutHandler,
                         trigger: schema.TriggerType.Http,
                         timeouts: {
-                            self: 1
+                            scenario: 1
                         }
                     },
-                    execution = new ScenarioExecution(scenario);
+                    execution = factory(scenario);
 
-                return execution.run().should.eventually.be.rejected;
+                return execution.run().then(function () {
+                    assert.fail('this branch should not have been executed')
+                }, function () {
+                    assert(transitionHandler.calledOnce);
+                    assert(timeoutHandler.calledOnce);
+                });
             });
 
 
@@ -443,7 +479,7 @@ describe('scenario-execution', function () {
                             onTermination: 1
                         }
                     },
-                    execution = new ScenarioExecution(scenario);
+                    execution = factory(scenario);
 
                 terminationHandler.returns(new Promise(function () {}));
                 return execution.run().then(function () {
@@ -480,7 +516,7 @@ describe('scenario-execution', function () {
                             onTermination: 1
                         }
                     },
-                    execution = new ScenarioExecution(scenario);
+                    execution = factory(scenario);
 
                 terminationHandler.returns(new Promise(function () {}));
                 terminationTimeoutHandler.returns(Promise.resolve({}));
@@ -518,7 +554,7 @@ describe('scenario-execution', function () {
                             onTerminationTimeout: 1
                         }
                     },
-                    execution = new ScenarioExecution(scenario);
+                    execution = factory(scenario);
 
                 terminationHandler.returns(new Promise(function () {}));
                 terminationTimeoutHandler.returns(new Promise(function () {}));
@@ -534,17 +570,18 @@ describe('scenario-execution', function () {
 
         describe('state', function () {
 
-            it('should time out excessively long state', function () {
-                var scenario = {
+            it('should timeout excessively long state', function () {
+                var transition = sinon.stub().returns(Promise.resolve({})),
+                    timeoutHandler = sinon.stub().returns(Promise.resolve({trigger: 'terminated'})),
+                    scenario = {
                         states: [
                             {
                                 id: 'initialized',
                                 entrypoint: true,
-                                transition: function () {
-                                    return new Promise(function () {});
-                                },
+                                transition: transition,
+                                onTimeout: timeoutHandler,
                                 timeouts: {
-                                    self: 1
+                                    state: 1
                                 }
                             },
                             {
@@ -554,9 +591,14 @@ describe('scenario-execution', function () {
                         ],
                         trigger: schema.TriggerType.Http
                     },
-                    execution = new ScenarioExecution(scenario);
+                    execution = factory(scenario);
 
-                return execution.run().should.eventually.be.rejected;
+                return execution.run().then(function () {
+                    assert.fail('this branch should have not been executed');
+                }, function () {
+                    assert(transition.calledOnce);
+                    assert(timeoutHandler.calledOnce);
+                });
             });
 
             it('should save timed out state by onTimeout handler', function () {
@@ -580,9 +622,10 @@ describe('scenario-execution', function () {
                                     return Promise.resolve({});
                                 }
                             }
-                        ]
+                        ],
+                        trigger: schema.TriggerType.Http
                     },
-                    execution = new ScenarioExecution(scenario);
+                    execution = factory(scenario);
 
                 transition.returns(new Promise(function () {}));
                 rescueHandler.returns(Promise.resolve({trigger: 'terminated'}));
@@ -615,9 +658,10 @@ describe('scenario-execution', function () {
                                     return Promise.resolve({});
                                 }
                             }
-                        ]
+                        ],
+                        trigger: schema.TriggerType.Http
                     },
-                    execution = new ScenarioExecution(scenario);
+                    execution = factory(scenario);
 
                 transition.returns(new Promise(function () {}));
                 rescueHandler.returns(new Promise(function () {}));
@@ -652,9 +696,10 @@ describe('scenario-execution', function () {
                                     return Promise.resolve({});
                                 }
                             }
-                        ]
+                        ],
+                        trigger: schema.TriggerType.Http
                     },
-                    execution = new ScenarioExecution(scenario);
+                    execution = factory(scenario);
 
                 transition.returns(new Promise(function () {}));
 
@@ -686,9 +731,10 @@ describe('scenario-execution', function () {
                                     return Promise.resolve({});
                                 }
                             }
-                        ]
+                        ],
+                        trigger: schema.TriggerType.Http
                     },
-                    execution = new ScenarioExecution(scenario);
+                    execution = factory(scenario);
 
                 transition.returns(new Promise(function () {}));
                 rescueHandler.returns(Promise.resolve({}));
@@ -721,9 +767,10 @@ describe('scenario-execution', function () {
                                     return Promise.resolve({});
                                 }
                             }
-                        ]
+                        ],
+                        trigger: schema.TriggerType.Http
                     },
-                    execution = new ScenarioExecution(scenario);
+                    execution = factory(scenario);
 
                 transition.returns(new Promise(function () {}));
                 rescueHandler.returns(Promise.resolve({}));
@@ -739,7 +786,9 @@ describe('scenario-execution', function () {
 
         describe('abort', function () {
             it('should run rescue handler on timed out abort', function () {
-                var rescueHandler = sinon.stub(),
+                var transitionHandler = sinon.stub().returns({}),
+                    abortHandler = sinon.stub().returns(Promise.resolve({})),
+                    rescueHandler = sinon.stub().returns(Promise.resolve({})),
                     scenario = {
                         states: [
                             {
@@ -747,11 +796,10 @@ describe('scenario-execution', function () {
                                 entrypoint: true,
                                 transition: function () {
                                     this.transitionTo('default', 'terminated');
+                                    transitionHandler.call();
                                     return new Promise(function () {});
                                 },
-                                abort: function () {
-                                    return new Promise(function () {});
-                                },
+                                abort: abortHandler,
                                 onAbortTimeout: rescueHandler,
                                 timeouts: {
                                     abort: 1
@@ -767,10 +815,11 @@ describe('scenario-execution', function () {
                         ],
                         trigger: schema.TriggerType.Http
                     },
-                    execution = new ScenarioExecution(scenario);
+                    execution = factory(scenario);
 
-                rescueHandler.returns(Promise.resolve({}));
                 return execution.run().then(function () {
+                    assert(transitionHandler.calledOnce);
+                    assert(abortHandler.calledOnce);
                     assert(rescueHandler.calledOnce);
                 });
             });
