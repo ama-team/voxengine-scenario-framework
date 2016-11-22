@@ -3,248 +3,288 @@
 This repository is dedicated for a simple framework that runs VoxEngine
 scenarios.
 
+To install this framework, simply run following command:
+
+```
+npm i @ama-team/voxengine-scenario-framework --save
+```
+
 ## Diving in
 
-This framework represents scenario as a set of states, only one of which
-can be active in any moment, with transitions - and transition here 
-means a piece of code that would enforce that state (more precise,
-transition is a function that receives current scenario run as this and
-returns `Promise` which will be resolved once state is achieved). When
-scenario is loaded, framework determines entrypoint state, transitions 
-to it (i.e. executes transition function and waits for `Promise` 
-resolve), and continues traversing states until final state is reached, 
-and then terminates scenario.
+This framework treats scenario as a set of states, each having a 
+transition (usually that's called a callback) that leads scenario to
+particular state. Simplified scenario example may look like that:
 
-Every state contains `.transition(previousState, hints)` method, and,
-optionally `.abort(overridingState, hints)` method, both of which have 
-to return successfully resolving promises (if `.abort()` promise 
-rejects, it is simply logged, while `.transition()` promise reject is 
-considered scenario fail and causes termination). While `.transition()`
-method performs actions required to bring scenario into target state,
-`.abort()` is used when it is required to abort unfinished transaction.
-Current scenario run is accessible as `this` for both `.transition()` 
-and `.abort()`, and `hints` is a (mostly) user-defined object that can
-contain additional hints about how transition should occur.
+```js
+var scenario = {
+    states: [
+        {
+            id: 'connected',
+            entrypoint: true,
+            transition: function () {
+                var self = this;
+                return new Promise(function(resolve, reject) {
+                    var call = self.data.call = VoxEngine.callPSTN(number);
+                    call.addEventListener(CallEvents.Connected, resolve({trigger: 'disconnected'}));
+                    call.addEventListener(CallEvents.Failed, reject({}));
+                });
+            }
+        },
+        {
+            id: 'messagePlayed',
+            transition: function () {
+                var self = this;
+                return new Promise(function(resolve) {
+                    self.data.call.say('It\'s me, Leha! Help me get out of the dog');
+                    self.data.call.addEventListener(CallEvents.PlaybackFinished, function() {
+                        resolve({trigger: 'disconnected'});
+                    });
+                });
+            }
+        },
+        {
+            id: 'disconnected',
+            terminal: true,
+            transition: function() {
+                self.data.call.hangup();
+            }
+        }
+    ]
+}
+```
 
-State transition consists of state's `.transition()` method execution, 
-and it may be invoked in two ways:
+Each state transition is either nothing (no operation required to 
+reach state), a value, a promise or a function. Framework analyzes 
+contents of `transition` property and wraps it in additional 
+conversion code. After transition has been done, framework updates
+current state and, if it sees `trigger` property on returned object,
+triggers next transition, eventually reaching state with `terminal`
+property set to `true`, and at this point it knows there won't be any 
+further state.
 
-- If previous transition has returned object with `trigger` property,
-transition for state that was described in `trigger` object would be 
-invoked. That makes easy to make straightforward scenarios that just 
-progress through.
-- If current scenario run receives `.transitionTo` call with object,
-identifying next state. This may be useful to trigger states based on 
-callbacks.
-
-Because of scenario complexity, it is possible that second transition 
-may start while first one hasn't ended. In that case framework will 
-execute `.abort()` method of state of first transition, and invoke 
-second transition without waiting for `.abort()` to finish.
-
-Some parts of this may sound like good old FSM, but it's formally quite 
-far from one.
-
-## Example
-
-Let's come up with a simple example:
+The full example would look like that:
 
 ```js
 var framework = require('@ama-team/voxengine-scenario-framework'),
     scenario = {
-        states: [
-            {
-                name: 'calleeDataFetched',
-                entrypoint: true,
-                transition: function () {
-                    // wrapping http request in promise
-                    return Net.httpRequestAsync(blah, blah)
-                        .then(function (data) { this.data.callee = data.callee })
-                        // force transition to another state as soon as this one was reached
-                        .then(function (_) { return { trigger: { name: 'called' } } });
-                }
-            },
-            {
-                name: 'called',
-                transition: function () {
-                    return new Promise(function (reject, resolve) {
-                            this.data.call = VoxEngine.callPSTN(this.data.callee);
-                            this.data.call.addEventListener(CallEvents.Connected, function () { resolve(); });
-                            // termination sequence will be started in case any transition rejects,
-                            // so be careful
-                            this.data.call.addEventListener(CallEvents.Failed, function () { reject(); });
-                            this.data.call.addEventListener(CallEvents.Finished, function () { transitionTo({ name: 'recorded' }); });
-                        })
-                        // `trigger` omitted - scenario will hang at this moment
-                        // until someone will call transitionTo() method
-                        .then(function (_) { return {} });
-                }
-            },
-            {
-                name: 'recorded',
-                final: true, // termination sequence will be triggered when this state is reached
-                transition: function () {
-                    // wrapping another HTTP request
-                    return new Promise(...);
-                }
-            }
-        ],
-        trigger: framework.TriggerType.Http
+        // stripped off for clarity    
     };
 
-framework.prepare(scenario).run();
+framework.prepare(scenario).auto();
 ```
 
-While it's obviously huge in term of lines, it's still simple and
-consists of three states:
+After that you just need to set up your bundling machine to produce
+single-file script, and you're done. Don't forget to strip the 
+comments: VoxImplant restricts scripts bigger than 128kb.
 
-- Number to call has been successfully fetched
-- Person has been successfully dialed
-- After call has finished, it's result has been recorded
+## Diving deeper
 
-Every state transition is a promise. Framework doesn't know what's 
-handled inside, but it knows that once promise resolved, it is safe
-to switch current state, and if it got rejected, it means that some 
-unhandleable error has happened, and script has to terminate. We will 
-return to this in a second.
+While the everything specified above is still true, there are plenty of 
+things that should be clarified.
 
-The first one is marked as entrypoint, which means that when scenario is 
-started, it will transition to it. Of course, there may be only one 
-entrypoint.
+### Conventions
 
-The third one is marked as final. This means that if this state is 
-reached, framework will start termination sequence, and whole scenario
-has de-facto ended by that moment.
+This framework follows several ideas:
 
-So, in simplistic way scenario executes like this:
+- Every lengthy action (transition, abort, staying in particular state)
+may be timed out. Scenario may be timed out as well.
+- Every failed action means that scenario has failed. The only 
+exception is made for failed aborts.
+- Every timed out lengthy action may have rescue handler, so it may
+save scenario from failure. Rescue handlers are run only in case of
+timeout event, in every other case lengthy action must save itself on
+it's own.
+- Every lengthy action is fed with cancellation token that allows 
+action to discover it is cancelled
+- Every user-defined function (e.g. transition) is fed with current 
+scenario execution as `this`
+- While there are timeout defaults, all timeouts are configurable, and
+no timeout is hardcoded.
+- Promises over listeners.
 
-- Initialize framework
-- Catch CallAlerting event in case scenario is call-triggered
-- Call `.transition()` on state with `entrypoint` flag set to `true` 
-(`calleeDataFetched`) and receive a promise
-- Set state to `calleeDataFetched` once promise has resolved, or start 
-termination sequence if it has been rejected
-- Analyze promise output and read instruction for triggering `called` 
-transition
-- Repeat `.transition()` call step
-- Analyze promise output and take no action since there is no trigger 
-instruction
-- Start next transition to `recorded` on `transitionTo()` call specified 
-in event
-- When promise resolves, understand that state is marked as final and
-trigger termination sequence
-- Termination sequence itself consists of executing `onTermination`
-function and waiting for promise to resolve (you may want to log some
-data or wait for HTTP requests to finish), then, finally,
-calling `VoxEngine.terminate()`.
+### State
 
-Logic is a little bit more complex (e.g. there are arguments in 
-`transition()` function, simultaneous transitions, abort process, 
-chained transitions), but those details are written out in
-[Schema](#schema) section.
-
-Please note that until version 1.0.0 all minor versions
-**probably would** break backward compatibility (so they are, actually,
-'pre-stable major versions') and text above may change from version to
-version. I'll try to keep API as stable as possible.
-
-## Schema
-
-### ScenarioDeclaration
-
-Scenario declaration simply states facts about scenario, such as name,
-version, timeouts and states that scenario may come into.
+The state consists of more things than listed in example. Full schema
+of state declaration is specified below:
 
 ```js
-{
-    name: 'callback', // optional
-    version: '0.1.0', // optional as well,
-    environment: <anything>, // optional, used for logging, so you'll want to set it to staging/production/etc.
-    states: [], // see below
-    onTermination: function () {}, // function that will be called before termination, optional
-    trigger: 'Call', // or 'Http', mandatory.
-    timeouts: {
-        onTermination: 60000,
-        transition: 10000, // default transition timeout, may be overriden per-state
-        abort: 10000, // default aboty timeout, may be overriden per-state
-        state: 60000, // default state timeout, may be overriden per-state
-    }
-}
-```
-
-Scenario will be automatically validated before each run, so if you set 
-something wrong, validator will simply shout at you. To prevent 
-happening this at runtime, you may validate your scenarios locally 
-before pushing them, see [Validation](#validation) section.
-
-### StateDeclaration
-
-State represents single state scenario may transition into.
-
-```js
-{
-    name: 'initialized',
-    stage: 'initialization',
-    transition: function (previousState, hints, cancellationToken) {},
-    abort: function (overridingState, hints) {}, // optional, but recommended
-    entrypoint: false, // whether is first state in scenario
-    terminal: false, // whether scenario should be shut down after reaching that state
-
-    // if this is set and state timeout is reached, this function may
-    // return <TriggerDeclaration> that will enforce state transition
-    // instead of immediate termination
-    onTimeout: function () {},
-    timeouts: {
-        transition: 10000, // how long may transition last, 0 or less for unlimited wait
-        abort: 10000, // same for abort
-        self: -1 // how many time scenario is allowed to stay in this state?
-    }
-}
-```
-
-### TriggerDeclaration
-
-Explains to framework what to trigger next
-
-```js
-{
-    name: '<state name>',
-    stage: '<stage id>',
-    hints: <user-defined object>
-}
-```
-
-### TransitionResult
-
-Transition result is a structure returned by transition promise
-
-```js
-{
-    transitionedTo: {
-        name: '<state name>',
-        stage: '<stage id>'
+var state = {
+    id: 'string', // state id, unique inside stage
+    stage: 'string', // state stage, 'default' if omitted,
+    entrypoint: false,
+    terminal: false,
+    transition: function (previousState, hints, cancellationToken) {
+        // accepts current scenario execution as `this` and returns promise
+        // that resolves once state is reached
+        
+        // hints is user-defined object to pass data or help with conditional logic
+        
+        // cancellationToken is a special object with `isCancelled()` method
+        // it allows you to not take some actions if transition has been cancelled
     },
-    trigger: <TriggerDeclaration>
+    onTransitionTimeout: function (previousState, hints, cancellationToken, error) {
+        // rescue handler in case transition has timed out
+    },
+    abort: function (previousState, hints, cancellationToken) {
+        // triggered if another transition has been started during this one
+    },
+    onAbortTimeout: function (previousState, hints, cancellationToken, error) {
+      
+    },
+    // runs if state timeout has been set (that's is not true by default)
+    onTimeout: function() {
+        
+    },
+    // values that equal to false or lesser than zero are treated as 'no timeout'
+    // milliseconds is used as time unit
+    timeouts: {
+        // useful to cancel long dials automatically
+        transition: 45 * 1000,
+        onTransitionTimeout: 15 * 1000,
+        abort: 15 * 1000,
+        onAbortTimeout: 3 * 1000,
+        onTimeout: 3 * 1000,
+        // state timeout
+        state: null
+    }
+};
+```
+
+Whenever framework receives call for transition into state X, it calls 
+`transition` property and waits for timeout being set. If transition
+timeouts, corresponding rescue handler is called. Rescue handler may
+returns promise that is treated just as one returned by transition, but
+default handler simply passes error through. Both transition and rescue
+handler get same `previousState` and `hints` arguments, but 
+`cancellationToken` differs.
+
+Transition / rescue handler chain return value is checked for
+`transitionedTo` and `trigger` properties. The first one allows to 
+override state scenario has ended in, the second one allows to trigger
+next transition instantly:
+ 
+```js
+var full = {
+    id: 'initialized',
+    transition: function () {
+        return Promise.resolve({
+            transitionedTo: {
+                id: 'truly-initialized',
+                stage: 'some-other-stage'
+            },
+            trigger: {
+                id: 'terminated',
+                stage: 'termination',
+                hints: {
+                    callTookLessThanThirtySeconds: true
+                }
+            }
+        });
+    }
+};
+
+var shortcuts = {
+    id: 'initialized',
+    transition: function () {
+        return Promise.resolve({
+            transitionedTo: 'some-other-stage:truly-initialized',
+            // sorry, no hints in shortcut
+            trigger: 'termination:terminated'
+        });
+    }
 }
 ```
 
-If `.transitionedTo` is set, it is used to determine current state 
-(instead of using state whose `.transition()` was called).
+In case transition / rescue handler chain 
+ends up with a rejected promise, the whole scenario is considered 
+failed and terminate sequence is launched. If promise resolve/reject
+value has `terminationHints` property, it is passed to termination 
+handler.
 
-If `.trigger` is set, framework instantly triggers next transition.
+Abort and abort rescue handler pair act in the same way, being called
+whenever new transition is issued while current one hasn't ended.
 
-### ScenarioRun
+### Scenario
 
-TBD
+Scenario schema is much simpler:
 
-## Validation
+```js
+var schema = {
+    schemaVersion: 'v0.1', // currently does nothing
+    id: 'callback', // used for logging only
+    version: '0.1.0', // used for logging only
+    environment: 'production', // used for logging only
+    states: [
+        {
+            id: 'initialized',
+            entrypoint: true
+        },
+        {
+            id: 'terminated',
+            terminal: true
+        }
+    ],
+    trigger: TriggerType.Http,
+    onTermination: function (hints, cancellationToken) {
+        // you may do necessary post-scenario routine here and then resolve returned promise
+    },
+    onTerminationTimeout: function (hints, cancellationToken, error) {
+        // rescue handler
+    },
+    timeouts: {
+        scenario: null,
+        onTermination: 15 * 1000,
+        onTerminationTimeout: 15 * 1000,
+        state: null,
+        transition: 45 * 1000,
+        onTransitionTimeout: 15 * 1000,
+        abort: 15 * 1000,
+        onAbortTimeout: 3 * 1000,
+        onStateTimeout: 3 * 1000
+    }
+};
+```
+
+Essentially, you may define scenario using only `states` and `trigger` 
+properties. Scenario has to have one `entrypoint` state and at least 
+one `terminal` state to be successfully validated.
+
+### ScenarioExecution
+
+Execution is an object that is passed as `this` to all user-defined
+actions, which allows to store intermediate data, pass dependency 
+injections and call `transitionTo` method:
+
+```js
+var execution = {
+    data: {}, // put here anything you wish,
+    container: {}, // dependency injection container
+    arguments: {}, // arguments passed by trigger
+    debug: function (message) {
+        // logs message, substituting pattern {} with extra arguments
+    },
+    info: function (message) {},
+    warn: function (message) {},
+    error: function (message) {},
+    run: function (arguments) {}, // runs scenario with specified arguments
+    auto: function () {}, // binds scenario to triggers and automatically fetches arguments
+    getCurrentState: function () {}, // get current scenario state
+    getHistory: function () {}, // get list of states scenario has been in
+    getCompletionHook: function () {
+        // returns completion promise which you will not need since 
+        // it will resolve after VoxEngine.terminate()
+    }
+}
+```
+
+### Validation
 
 You should validate your scenario before pushing to VI. This can be
 easily done via corresponding call:
 
 ```js
 var framework = require('@ama-team/voxengine-scenario-framework'),
-    scenario = ...
+    scenario = {};
 
     validationResult = framework.validate(scenario);
 ```
@@ -252,7 +292,7 @@ var framework = require('@ama-team/voxengine-scenario-framework'),
 validation result looks like this:
 
 ```js
-{
+var validationResult = {
     valid: true,
     violations: [
         'strings that describe problems'
@@ -264,14 +304,9 @@ Please note that `valid` property is not the same as `violations`
 property emptiness, some reported violations may not convert scenario to
 invalid one.
 
-## Timeouts
+### Running
 
-As you may have seen though the document, nearly every action has a 
-configurable timeout. Since hand-generated promises are used 
-extensively, it is terribly easy to leave unresolvable promise behind
-that would prevent scenario from successful completion and may drain
-your money. Because of that framework enforces timing constraints on
-most of tasks, leaving you an option to configure them more precisely.
+TBD
 
 ## Concurrency notes
 
