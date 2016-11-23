@@ -1,22 +1,14 @@
 var schema = require('../lib/schema'),
     concurrent = require('../lib/utility/concurrent'),
+    TimeoutException = concurrent.TimeoutException,
+    CancellationToken = concurrent.CancellationToken,
     chai = require('chai'),
     expect = chai.expect,
     assert = chai.assert;
 
 chai.should();
 
-function FakeCancellationToken() {
-    this.isCancelled = function () {
-        return false;
-    }
-}
-
-function TestingException() {
-
-}
-
-describe('schema', function () {
+describe('/schema.js', function () {
     describe('.normalizeStateId', function () {
         it('should read `stage:id` string', function () {
             var normalized = schema.normalizeStateId('stage:id');
@@ -112,126 +104,134 @@ describe('schema', function () {
         });
         
         it('should correctly wrap undefined transition', function () {
-            var promise = schema.normalizeState({id: 'id'}).transition.call();
-            expect(promise).to.be.instanceof(Promise);
-            expect(promise.then).to.be.instanceof(Function);
-            return promise.then(function (value) {
-                expect(value).to.exist;
-                expect(value).to.be.empty;
-            })
+            var state = schema.normalizeState({id: 'id'});
+
+            return state.transition.call()
+                .then(function (value) {
+                    expect(value).to.exist;
+                    expect(value).to.be.empty;
+                });
         });
 
         it('should correctly wrap value transition', function () {
             var transition = {hints: 42},
-                promise = schema.normalizeState({id: 'id', transition: transition}).transition.call();
-            expect(promise).to.be.instanceof(Promise);
-            expect(promise.then).to.be.instanceof(Function);
-            return promise.then(function (value) {
-                expect(value).to.exist;
-                expect(value).to.be.equal(value);
-            })
+                state = schema.normalizeState({id: 'id', transition: transition});
+
+            return state.transition.call()
+                .then(function (value) {
+                    expect(value).to.exist;
+                    expect(value).to.be.equal(value);
+                });
         });
 
         it('should correctly wrap Promise transition', function () {
             var transition = Promise.resolve({hints: 42}),
-                promise = schema.normalizeState({id: 'id', transition: transition}).transition.call();
-            expect(promise).to.be.instanceof(Promise);
-            expect(promise.then).to.be.instanceof(Function);
-            return promise.then(function (value) {
-                expect(value).to.exist;
-                expect(value).to.be.equal(value);
-            })
+                state = schema.normalizeState({id: 'id', transition: transition});
+
+            return state.transition.call()
+                .then(function (value) {
+                    expect(value).to.exist;
+                    expect(value).to.be.equal(value);
+                });
         });
 
         it('should set up .onTransitionTimeout handler', function () {
             var state = schema.normalizeState({id: 'id'}),
-                error = new TestingException(),
-                promise;
+                error = new TimeoutException('Testing exception flow');
 
-            assert(state.onTransitionTimeout);
-            state.onTransitionTimeout.should.be.instanceof(Function);
-            promise = state.onTransitionTimeout.call(null, null, null, new FakeCancellationToken(), error);
-            promise.should.be.instanceof(Promise);
-            return promise.then(function () {
-                assert.fail('this branch should have never been executed');
-            }, function (e) {
-                e.should.be.equal(error);
-            });
+            return state.onTransitionTimeout.call(null, null, null, new CancellationToken(), error)
+                .then(function () {
+                    assert.fail('this branch should have never been executed');
+                }, function (e) {
+                    e.should.be.equal(error);
+                });
         });
 
         it('should set up .abort handler', function () {
-            var state = schema.normalizeState({id: 'id'}),
-                promise;
+            var state = schema.normalizeState({id: 'id'});
 
-            assert(state.abort);
-            state.abort.should.be.instanceof(Function);
-            promise = state.abort.call(null, null, null, new FakeCancellationToken());
-            promise.should.be.instanceof(Promise);
-            return promise;
+            return state.abort.call(null, null, null, new CancellationToken());
         });
 
         it('should set up .onAbortTimeout handler', function () {
             var state = schema.normalizeState({id: 'id'}),
-                error = new TestingException(),
-                promise;
+                error = new TimeoutException('Testing exception flow');
 
-            assert(state.onAbortTimeout);
-            state.onAbortTimeout.should.be.instanceof(Function);
-            promise = state.onAbortTimeout.call(null, null, null, null, error);
-            promise.should.eventually.be.instanceof(Promise);
-            return promise.then(function () {
-                assert.fail('this branch should have never been executed');
-            }, function (e) {
-                e.should.be.equal(error);
-            });
+            return state.onAbortTimeout.call(null, null, null, null, error)
+                .then(function () {
+                    assert.fail('this branch should have never been executed');
+                }, function (e) {
+                    e.should.be.equal(error);
+                });
         });
 
         it('should set up .onTimeout handler', function () {
-            var state = schema.normalizeState({id: 'id'}),
-                error = new TestingException(),
-                promise;
+            var error = new TimeoutException('Testing exception flow'),
+                state = schema.normalizeState({id: 'id'});
 
-            assert(state.onTimeout);
-            state.onTimeout.should.be.instanceof(Function);
-            promise = state.onTimeout.call(null, null, null, null, error);
-            return promise.then(function () {
-                assert.fail('this branch should have never been executed');
-            }, function (e) {
-                e.should.be.equal(error);
-            });
-        });
-
-        it('should install correct onTransitionTimeout handler', function () {
-            var error = new concurrent.TimeoutException('Testing exception flow'),
-                state = schema.normalizeState({id: 'id'}),
-                promise = state.onTransitionTimeout.call(null, null, null, null, error);
-
-            promise.should.be.instanceof(Promise);
-            return promise.then(function () {
-                assert.fail('this branch should have never been executed');
-            }, function (e) {
-                e.should.be.equal(error);
-            })
+            return state.onTimeout.call(null, null, null, null, error)
+                .then(function () {
+                    assert.fail('this branch should have never been executed');
+                }, function (e) {
+                    e.should.be.equal(error);
+                });
         });
 
     });
 
     describe('.normalizeScenario', function () {
         it('should fully normalize scenario', function () {
+            var raw = {
+                    states: [
+                        {
+                            id: 'initialized',
+                            entrypoint: true
+                        },
+                        {
+                            id: 'terminated',
+                            terminal: true
+                        }
+                    ],
+                    trigger: schema.TriggerType.Http
+                },
+                scenario = schema.normalizeScenario(raw);
 
-        });
+            scenario.onTermination.should.be.instanceof(Function);
+            scenario.onTerminationTimeout.should.be.instanceof(Function);
+            expect(scenario.timeouts).to.exist;
+            expect(scenario.schemaVersion).to.exist;
+            expect(scenario.states).to.exist;
 
-        it('should wrap undefined onTermination handler', function () {
+            scenario.states[0].entrypoint.should.be.equal(true);
+            scenario.states[0].terminal.should.be.equal(false);
+            scenario.states[0].transition.should.be.instanceof(Function);
+            scenario.states[0].onTransitionTimeout.should.be.instanceof(Function);
+            scenario.states[0].abort.should.be.instanceof(Function);
+            scenario.states[0].onAbortTimeout.should.be.instanceof(Function);
+            scenario.states[0].onTimeout.should.be.instanceof(Function);
 
+            scenario.states[1].entrypoint.should.be.equal(false);
         });
 
         it('should wrap fixed onTermination value', function () {
+            var raw = {
+                    states: [
+                        {
+                            id: 'initialized',
+                            entrypoint: true
+                        },
+                        {
+                            id: 'terminated',
+                            terminal: true
+                        }
+                    ],
+                    trigger: schema.TriggerType.Http,
+                    onTermination: {hints: 12}
+                },
+                scenario = schema.normalizeScenario(raw);
 
+            expect(scenario.onTermination).to.be.instanceof(Function);
         });
-
-        it('should wrap defined onTermination handler', function () {
-
-        })
     });
 
     describe('.validateScenario', function () {

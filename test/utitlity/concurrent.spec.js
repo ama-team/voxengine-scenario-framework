@@ -4,8 +4,8 @@ var concurrent = require('../../lib/utility/concurrent'),
 
 chai.should();
 
-describe('utility', function () {
-   describe('concurrent', function () {
+describe('/utility', function () {
+   describe('/concurrent.js', function () {
        describe('.timeout', function () {
            it('should successfully timeout', function () {
                var promise = concurrent.timeout(new Promise(function () {}), 1);

@@ -11,7 +11,7 @@
     "test:report": "npm run test:ignore && npm run allure:report",
     "allure:report": "allure generate -o report/allure -- report/allure-results",
     "allure:open": "allure report open -o report/allure",
-    "allure": "npm run test:report && npm run allure:report"
+    "allure": "npm run test:report"
   },
   "engines": {},
   "repository": {

@@ -1,8 +1,8 @@
 var utilities = require('../../lib/utility/common'),
     chai = require('chai');
 
-describe('utility', function () {
-    describe('common', function () {
+describe('/utility', function () {
+    describe('/common.js', function () {
         describe('.object', function () {
             describe('.overwrite', function () {
                 it('should not use prototype in overwrite', function () {
