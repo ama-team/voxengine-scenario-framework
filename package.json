@@ -6,12 +6,11 @@
   "scripts": {
     "clean": "rm -rf report",
     "pretest": "npm run clean",
-    "test": "node_modules/.bin/mocha",
+    "test": "node_modules/.bin/istanbul cover --dir report/coverage node_modules/.bin/_mocha **/*.js",
     "test:ignore": "npm run test || true",
     "test:report": "npm run test:ignore && npm run allure:report",
     "allure:report": "allure generate -o report/allure -- report/allure-results",
-    "allure:open": "allure report open -o report/allure",
-    "allure": "npm run test:report"
+    "allure:open": "allure report open -o report/allure"
   },
   "engines": {},
   "repository": {
@@ -50,10 +49,12 @@
     "@ama-team/voxengine-definitions": "^0.1.0",
     "chai": "^3.5.0",
     "chai-as-promised": "^6.0.0",
+    "istanbul": "^0.4.5",
     "karma": "^1.3.0",
     "karma-coverage": "^1.1.1",
     "mocha": "^3.1.2",
     "mocha-allure-reporter": "^1.2.4",
+    "mocha-lcov-reporter": "^1.2.0",
     "mocha-multi": "^0.9.1",
     "mocha-multi-reporters": "^1.1.1",
     "promise": "^7.1.1",
