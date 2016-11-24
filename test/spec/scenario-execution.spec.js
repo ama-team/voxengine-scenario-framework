@@ -1,7 +1,7 @@
-var ScenarioExecution = require('../lib/scenario-execution').ScenarioExecution,
-    schema = require('../lib/schema'),
+var ScenarioExecution = require('../../lib/scenario-execution').ScenarioExecution,
+    schema = require('../../lib/schema'),
     CompletionStatus = schema.CompletionStatus,
-    concurrent = require('../lib/utility/concurrent'),
+    concurrent = require('../../lib/utility/concurrent'),
     TimeoutException = concurrent.TimeoutException,
     chai = require('chai'),
     assert = chai.assert,
@@ -20,9 +20,9 @@ global.VoxEngine = {
 };
 
 describe('/scenario-execution.js', function () {
-    var logs,
+    var scenarioLogs,
         writer,
-        logger,
+        scenarioLogger,
         factory,
         infinite = function () {
             return new Promise(function () {});
@@ -45,30 +45,33 @@ describe('/scenario-execution.js', function () {
         };
 
     beforeEach(function () {
-        logs = [];
+        scenarioLogs = [];
         //noinspection JSUnusedGlobalSymbols
         writer = {
             write: function (message) {
-                logs.push(message);
+                scenarioLogs.push(message);
+                console.log('    ' + message);
             }
         };
-        logger = new loggers.slf4j(writer, loggers.LogLevel.ALL);
+        scenarioLogger = new loggers.slf4j(writer, loggers.LogLevel.ALL);
         factory = function (scenario) {
             var context = {
                 container: {
-                    logger: logger
+                    logger: scenarioLogger
                 }
             };
             return new ScenarioExecution(scenario, context);
         };
+        console.log('\n\n');
     });
 
     afterEach(function () {
+        console.log('\n\n');
         if (!('allure' in global)) {
             return;
         }
-        if (logs.length > 0) {
-            allure.createAttachment('log.txt', logs.join('\n'), 'text/plain')
+        if (scenarioLogs.length > 0) {
+            allure.createAttachment('scenario.log', scenarioLogs.join('\n'), 'text/plain');
         }
     });
 
@@ -77,7 +80,7 @@ describe('/scenario-execution.js', function () {
         describe(': interface verification', function () {
 
             it('should execute simple scenario', function () {
-                var transitionA = sinon.stub().returns(Promise.resolve({trigger: 'terminated'})),
+                var transitionA = sinon.spy(resolvedFactory({trigger: 'terminated'})),
                     transitionB = sinon.spy(resolved),
                     onTermination = sinon.spy(resolved),
                     scenario = {
@@ -199,11 +202,9 @@ describe('/scenario-execution.js', function () {
             });
 
             it('should correctly handle different triggers', function () {
-                var transitionA = sinon.stub().returns({trigger: 'stage-b:transitioned'}),
-                    transitionB = sinon.stub().returns({trigger: 'relocated'}),
-                    transitionC = sinon.stub().returns({trigger: {id: 'aborted', stage: 'stage-c'}}),
-                    transitionD = sinon.stub().returns({trigger: {id: 'terminated'}}),
-                    transitionE = sinon.stub().returns({}),
+                var transitionA = sinon.stub().returns({trigger: 'transitioned'}),
+                    transitionB = sinon.stub().returns({trigger: {id: 'terminated'}}),
+                    transitionC = sinon.stub().returns({}),
                     scenario = {
                         states: [
                             {
@@ -213,24 +214,12 @@ describe('/scenario-execution.js', function () {
                             },
                             {
                                 id: 'transitioned',
-                                stage: 'stage-b',
                                 transition: transitionB
                             },
                             {
-                                id: 'relocated',
-                                stage: 'stage-b',
-                                transition: transitionC
-                            },
-                            {
-                                id: 'aborted',
-                                stage: 'stage-c',
-                                transition: transitionD
-                            },
-                            {
                                 id: 'terminated',
-                                stage: 'stage-c',
                                 terminal: true,
-                                transition: transitionE
+                                transition: transitionC
                             }
                         ],
                         trigger: schema.TriggerType.Http
@@ -241,12 +230,10 @@ describe('/scenario-execution.js', function () {
                     assert(transitionA.calledOnce);
                     assert(transitionB.calledOnce);
                     assert(transitionC.calledOnce);
-                    assert(transitionD.calledOnce);
-                    assert(transitionE.calledOnce);
                     assert(result.successful);
                     assert.equal(result.status, CompletionStatus.Completion);
                     assert(result.state);
-                    assert.equal(scenario.states[4].id, result.state.id);
+                    assert.equal(scenario.states[2].id, result.state.id);
                 });
             });
 
@@ -261,7 +248,7 @@ describe('/scenario-execution.js', function () {
                                 transition: function () {
                                     var self = this;
                                     setTimeout(function () {
-                                        self.transitionTo('default', 'terminated');
+                                        self.transitionTo('terminated');
                                     });
                                     return transitionAResolver();
                                 }
@@ -318,11 +305,18 @@ describe('/scenario-execution.js', function () {
                         assert.equal(transitionB.callCount, 0);
                         assert.equal(failure.result.status, CompletionStatus.TransitionFailure);
                         assert.equal(failure.result.state.id, scenario.states[0].id);
+                        return Promise.resolve();
                     });
             });
 
             it('should not reject scenario with failed abort', function () {
-                var transitionA = sinon.spy(resolved),
+                var transitionA = sinon.spy(function (state, hints, token) {
+                        var self = this;
+                        setTimeout(function () {
+                            self.transitionTo('terminated');
+                        }, 1);
+                        return token.getPromise();
+                    }),
                     abortHandler = sinon.spy(rejected),
                     transitionB = sinon.spy(resolved),
                     scenario = {
@@ -333,13 +327,13 @@ describe('/scenario-execution.js', function () {
                                 transition: function (state, hints, token) {
                                     var self = this;
                                     setTimeout(function () {
-                                        self.transitionTo('default', 'terminated');
+                                        self.transitionTo('terminated');
                                     }, 1);
                                     return token.getPromise().then(transitionA);
                                 },
                                 abort: abortHandler,
                                 timeouts: {
-
+                                    transition: null
                                 }
                             },
                             {
@@ -364,7 +358,7 @@ describe('/scenario-execution.js', function () {
             it('should reject scenario with failed onTermination', function () {
                 var transitionA = sinon.spy(resolvedFactory({trigger: 'terminated'})),
                     transitionB = sinon.spy(resolved),
-                    terminationHandler = sinon.spy(rejected),
+                    terminationHandler = sinon.spy(rejectedFactory(new Error('Testing exception'))),
                     scenario = {
                         states: [
                             {
@@ -397,11 +391,16 @@ describe('/scenario-execution.js', function () {
             });
 
             it('should pass same hints to .transition, .abort and timeout handlers', function () {
-                assert.fail('slothful test');
-                var initializeTransitionHandler = sinon.spy(infinite),
-                    initializeAbortHandler = sinon.spy(infinite),
+                var initializeTransitionHandler = sinon.spy(function (state, hints, token) {
+                        return token.getPromise();
+                    }),
+                    initializeAbortHandler = sinon.spy(function (state, hints, token) {
+                        return token.getPromise();
+                    }),
                     initializeAbortTimeoutHandler = sinon.spy(resolved),
-                    interceptTransitionHandler = sinon.spy(infinite),
+                    interceptTransitionHandler = sinon.spy(function (state, hints, token) {
+                        return token.getPromise();
+                    }),
                     interceptTransitionTimeoutHandler = sinon.spy(resolved),
                     interceptTimeoutHandler = sinon.spy(resolvedFactory({trigger: 'terminated'})),
                     terminalTransitionHandler = sinon.spy(resolved),
@@ -439,9 +438,9 @@ describe('/scenario-execution.js', function () {
                     },
                     execution = factory(scenario);
 
-                execution.transitionTo('default', 'initialized', hints);
+                execution.transitionTo('initialized', hints);
 
-                return execution.transitionTo('default', 'intercept', hints)
+                return execution.transitionTo('intercept', hints)
                     .then(execution.getTerminationHook)
                     .then(function (result) {
                         initializeTransitionHandler.getCall(0).args[1].should.be.equal(hints);
@@ -495,7 +494,6 @@ describe('/scenario-execution.js', function () {
             describe(': scenario', function () {
 
                 it('should timeout excessively long scenario', function () {
-                    assert.fail('slothful test');
                     var transitionHandler = sinon.spy(function (state, hints, token) {
                             return token.getPromise();
                         }),
@@ -531,11 +529,12 @@ describe('/scenario-execution.js', function () {
                     });
                 });
 
-
                 it('should reject scenario with timed out onTermination', function () {
                     var transitionA = sinon.spy(resolvedFactory({trigger: 'terminated'})),
                         transitionB = sinon.spy(resolved),
-                        terminationHandler = sinon.spy(infinite),
+                        terminationHandler = sinon.spy(function (hints, token) {
+                            return token.getPromise();
+                        }),
                         scenario = {
                             states: [
                                 {
@@ -655,7 +654,9 @@ describe('/scenario-execution.js', function () {
                 it('should timeout excessively long state', function () {
                     var transitionA = sinon.spy(resolved),
                         transitionB = sinon.spy(resolved),
-                        timeoutHandler = sinon.spy(resolvedFactory({trigger: 'terminated'})),
+                        timeoutHandler = sinon.spy(function (a, b, c, e) {
+                            return rejected(e);
+                        }),
                         scenario = {
                             states: [
                                 {
@@ -681,7 +682,7 @@ describe('/scenario-execution.js', function () {
                         assert.fail('this branch should have not been executed');
                     }, function (failure) {
                         assert(transitionA.calledOnce);
-                        assert(transitionB.callCount, 0);
+                        assert.equal(transitionB.callCount, 0);
                         assert(timeoutHandler.calledOnce);
                         assert(!failure.result.successful);
                         assert.equal(failure.result.status, CompletionStatus.StateTimeout);
@@ -714,7 +715,7 @@ describe('/scenario-execution.js', function () {
                         },
                         execution = factory(scenario);
 
-                    execution.run().then(function (result) {
+                    return execution.run().then(function (result) {
                         assert(transitionA.calledOnce);
                         assert(transitionB.calledOnce);
                         assert(rescueHandler.calledOnce);
@@ -723,12 +724,11 @@ describe('/scenario-execution.js', function () {
                     });
                 });
 
-                it('should reject scenario in case of both state and rescue handler timeouts', function () {
-                    assert.fail('slothful test');
+                it('should reject scenario if both state and rescue handler time out', function () {
                     var transitionA = sinon.spy(function (state, hints, token) {
                             return token.getPromise();
                         }),
-                        rescueHandler = sinon.spy(function (state, hints, token, error) {
+                        rescueHandler = sinon.spy(function (state, hints, token) {
                             return token.getPromise();
                         }),
                         transitionB = sinon.spy(resolved),
@@ -754,7 +754,7 @@ describe('/scenario-execution.js', function () {
                         },
                         execution = factory(scenario);
 
-                    execution.run().then(function () {
+                    return execution.run().then(function () {
                         assert.fail('this branch should have never been executed');
                     }, function (failure) {
                         assert(transitionA.calledOnce);
@@ -792,7 +792,7 @@ describe('/scenario-execution.js', function () {
                         },
                         execution = factory(scenario);
 
-                    execution.run().then(function () {
+                    return execution.run().then(function () {
                         assert.fail('this branch should have never been executed');
                     }, function (failure) {
                         assert(transitionA.calledOnce);
@@ -828,7 +828,7 @@ describe('/scenario-execution.js', function () {
                         },
                         execution = factory(scenario);
 
-                    execution.run().then(function (result) {
+                    return execution.run().then(function (result) {
                         assert(transitionA.calledOnce);
                         assert(rescueHandler.calledOnce);
                         assert(transitionB.calledOnce);
@@ -864,7 +864,7 @@ describe('/scenario-execution.js', function () {
                         },
                         execution = factory(scenario);
 
-                    execution.run().then(function () {
+                    return execution.run().then(function () {
                         assert.fail('this branch should have never been executed');
                     }, function (failure) {
                         assert(transitionA.calledOnce);
@@ -881,7 +881,7 @@ describe('/scenario-execution.js', function () {
             describe(': abort', function () {
                 it('should run rescue handler on timed out abort', function () {
                     var transitionA = sinon.spy(function (state, hints, token) {
-                            this.transitionTo('default', 'terminated');
+                            this.transitionTo('terminated');
                             return token.getPromise();
                         }),
                         abortHandler = sinon.spy(infinite),

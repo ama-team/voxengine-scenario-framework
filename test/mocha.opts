@@ -1,3 +1,6 @@
 --recursive
 --reporter mocha-multi-reporters --reporter-options configFile=test/multi.json
 --timeout 200
+--slow 10
+--full-trace
+test/setup.js test/spec/**/*.js

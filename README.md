@@ -110,7 +110,6 @@ of state declaration is specified below:
 ```js
 var state = {
     id: 'string', // state id, unique inside stage
-    stage: 'string', // state stage, 'default' if omitted,
     entrypoint: false,
     terminal: false,
     transition: function (previousState, hints, cancellationToken) {

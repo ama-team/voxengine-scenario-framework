@@ -1,5 +1,5 @@
 {
-  "reporterEnabled": "spec, mocha-allure-reporter",
+  "reporterEnabled": "list, mocha-allure-reporter, xunit",
   "mochaAllureReporterReporterOptions": {
     "targetDir": "report/allure-results"
   },

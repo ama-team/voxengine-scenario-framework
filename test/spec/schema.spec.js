@@ -1,5 +1,5 @@
-var schema = require('../lib/schema'),
-    concurrent = require('../lib/utility/concurrent'),
+var schema = require('../../lib/schema'),
+    concurrent = require('../../lib/utility/concurrent'),
     TimeoutException = concurrent.TimeoutException,
     CancellationToken = concurrent.CancellationToken,
     chai = require('chai'),
@@ -9,91 +9,8 @@ var schema = require('../lib/schema'),
 chai.should();
 
 describe('/schema.js', function () {
-    describe('.normalizeStateId', function () {
-        it('should read `stage:id` string', function () {
-            var normalized = schema.normalizeStateId('stage:id');
-            normalized.should.have.property('stage', 'stage');
-            normalized.should.have.property('id', 'id');
-        });
-
-        it('should read `:id` string', function () {
-            var normalized = schema.normalizeStateId(':id');
-            normalized.should.have.property('stage', 'default');
-            normalized.should.have.property('id', 'id');
-        });
-
-        it('should read `id` string', function () {
-            var normalized = schema.normalizeStateId('id');
-            normalized.should.have.property('stage', 'default');
-            normalized.should.have.property('id', 'id');
-        });
-
-        it('should read null id from `stage:` string', function () {
-            var normalized = schema.normalizeStateId('stage:');
-            normalized.should.have.property('stage', 'stage');
-            normalized.should.have.property('id', null);
-        });
-
-        it('should read stage and id from `{id: "stage:id"}`', function () {
-            var normalized = schema.normalizeStateId({id: 'stage:id'});
-            normalized.should.have.property('stage', 'stage');
-            normalized.should.have.property('id', 'id');
-        });
-
-        it('should throw on null as argument', function () {
-            expect(function () {
-                schema.normalizeStateId(undefined);
-            }).throw(Object)
-        });
-    });
 
     describe('.normalizeState', function () {
-        it('should set default timeouts', function () {
-            var timeouts = {
-                    self: 42,
-                    transition: 42,
-                    abort: 42
-                },
-                normalized = schema.normalizeState({id: 'id'}, timeouts);
-            normalized.should.have.property('timeouts');
-            normalized.timeouts.should.have.property('self', 42);
-            normalized.timeouts.should.have.property('transition', 42);
-            normalized.timeouts.should.have.property('abort', 42);
-        });
-
-        it('should not override existing timeouts', function () {
-            var timeouts = {
-                    self: 42,
-                    transition: 42,
-                    abort: 42
-                },
-                state = {
-                    id: 'id',
-                    timeouts: {
-                        self: 142,
-                        transition: 142,
-                        abort: 142
-                    }
-                };
-                normalized = schema.normalizeState(state, timeouts);
-
-            normalized.should.have.property('timeouts');
-            normalized.timeouts.should.have.property('self', 142);
-            normalized.timeouts.should.have.property('transition', 142);
-            normalized.timeouts.should.have.property('abort', 142);
-        });
-
-        it('should correctly read `stage:id` id', function () {
-            var state = { id: 'stage:id' },
-                normalized = schema.normalizeState(state, {});
-
-            normalized.should.have.property('id', 'id');
-            normalized.should.have.property('stage', 'stage');
-        });
-
-        it('should set default stage if stage is missing', function () {
-            schema.normalizeState({id: 'id'}, {}).should.have.property('stage', 'default');
-        });
         
         it('should normalize entrypoint', function () {
             schema.normalizeState({id: 'id'}).should.have.property('entrypoint', false);
@@ -108,8 +25,14 @@ describe('/schema.js', function () {
 
             return state.transition.call()
                 .then(function (value) {
-                    expect(value).to.exist;
-                    expect(value).to.be.empty;
+                    assert.instanceOf(value, schema.Directive);
+                    assert.equal(value.trigger.id, null);
+                    assert.deepEqual(value.trigger.hints, {});
+                    assert.equal(value.transitionedTo, null);
+                    assert.property(value, 'trigger');
+                    assert.equal(value.trigger.id, null);
+                    assert.property(value, 'transitionedTo');
+                    assert.equal(value.transitionedTo, null);
                 });
         });
 
@@ -234,12 +157,73 @@ describe('/schema.js', function () {
         });
     });
 
+    describe('.normalizeDirective', function () {
+
+        it('should correctly normalize null', function () {
+            var result = schema.normalizeDirective(null);
+
+            result.should.have.property('trigger', null);
+            result.should.have.property('transitionedTo', null);
+            result.termination.should.have.property('hints');
+            result.termination.hints.should.be.deep.equal({});
+        });
+
+
+        it('should correctly normalize full directive', function () {
+            var raw = {
+                    termination: {
+                        hints: {x: 12}
+                    },
+                    trigger: 'terminated',
+                    transitionedTo: 'initialized'
+                },
+                directive = schema.normalizeDirective(raw);
+
+            directive.should.have.property('trigger');
+            directive.trigger.should.have.property('id', raw.trigger);
+            directive.trigger.should.have.property('hints');
+            directive.trigger.hints.should.be.deep.equal({});
+            directive.should.have.property('transitionedTo', raw.transitionedTo);
+            directive.should.have.property('termination');
+            directive.termination.should.have.property('hints', raw.termination.hints);
+        });
+
+    });
+
+    describe('.normalizeTrigger', function () {
+        it('should correctly normalize null', function () {
+            var trigger = schema.normalizeTrigger(null);
+
+            assert.equal(trigger.id, null);
+            assert.deepEqual(trigger.hints, {});
+        });
+
+        it('should correctly normalize string', function () {
+            var raw = 'terminated',
+                trigger = schema.normalizeTrigger(raw);
+
+            assert.equal(trigger.id, raw);
+            assert.deepEqual(trigger.hints, {});
+        });
+
+        it('should correctly normalize full trigger definition', function () {
+            var raw = {
+                    id: 'terminated',
+                    hints: {x: 19}
+                },
+                trigger = schema.normalizeTrigger(raw);
+
+            assert.equal(trigger.id, raw.id);
+            assert.equal(trigger.hints, raw.hints);
+        });
+    });
+
     describe('.validateScenario', function () {
         it('should report missing entrypoint', function () {
             var scenario = {
                     states: [
                         {
-                            id: 'stage:id',
+                            id: 'id',
                             terminal: true
                         }
                     ],
@@ -257,7 +241,7 @@ describe('/schema.js', function () {
             var scenario = {
                     states: [
                         {
-                            id: 'stage:id',
+                            id: 'id',
                             entrypoint: true
                         },
                         {
@@ -283,7 +267,7 @@ describe('/schema.js', function () {
             var scenario = {
                     states: [
                         {
-                            id: 'stage:id',
+                            id: 'id',
                             entrypoint: true
                         }
                     ],
@@ -301,12 +285,11 @@ describe('/schema.js', function () {
             var scenario = {
                     states: [
                         {
-                            id: 'stage:id',
+                            id: 'id',
                             entrypoint: true
                         },
                         {
                             id: 'id',
-                            stage: 'stage',
                             terminal: true
                         }
                     ],
@@ -316,9 +299,9 @@ describe('/schema.js', function () {
 
             validationResult.valid.should.be.false;
             validationResult.violations.should.not.be.empty;
-            validationResult.violations.should.have.property('states.stage.id');
-            validationResult.violations['states.stage.id'].should.exist;
-            validationResult.violations['states.stage.id'].should.not.be.empty;
+            validationResult.violations.should.have.property('states.id');
+            validationResult.violations['states.id'].should.exist;
+            validationResult.violations['states.id'].should.not.be.empty;
         });
 
         it('should report unknown trigger', function () {
@@ -425,5 +408,5 @@ describe('/schema.js', function () {
             validationResult.valid.should.be.false;
             validationResult.violations.states.should.not.be.empty;
         });
-    })
+    });
 });

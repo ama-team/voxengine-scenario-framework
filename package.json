@@ -6,7 +6,8 @@
   "scripts": {
     "clean": "rm -rf report",
     "pretest": "npm run clean",
-    "test": "node_modules/.bin/istanbul cover --dir report/coverage node_modules/.bin/_mocha **/*.js",
+    "test": "node_modules/.bin/mocha",
+    "test:coverage": "node_modules/.bin/istanbul cover --dir report/coverage node_modules/.bin/_mocha",
     "test:ignore": "npm run test || true",
     "test:report": "npm run test:ignore && npm run allure:report",
     "allure:report": "allure generate -o report/allure -- report/allure-results",

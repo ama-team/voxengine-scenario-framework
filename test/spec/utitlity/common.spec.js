@@ -1,4 +1,4 @@
-var utilities = require('../../lib/utility/common'),
+var utilities = require('../../../lib/utility/common'),
     chai = require('chai');
 
 describe('/utility', function () {

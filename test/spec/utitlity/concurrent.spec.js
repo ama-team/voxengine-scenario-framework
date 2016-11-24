@@ -1,4 +1,4 @@
-var concurrent = require('../../lib/utility/concurrent'),
+var concurrent = require('../../../lib/utility/concurrent'),
     chai = require('chai'),
     assert = chai.assert;
 
