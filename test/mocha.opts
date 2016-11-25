@@ -3,4 +3,4 @@
 --timeout 200
 --slow 10
 --full-trace
-test/setup.js test/spec/**/*.js
+test/spec/**/*.js

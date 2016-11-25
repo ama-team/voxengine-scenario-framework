@@ -391,6 +391,7 @@ describe('/scenario-execution.js', function () {
             });
 
             it('should pass same hints to .transition, .abort and timeout handlers', function () {
+                assert.fail('slothful test');
                 var initializeTransitionHandler = sinon.spy(function (state, hints, token) {
                         return token.getPromise();
                     }),
