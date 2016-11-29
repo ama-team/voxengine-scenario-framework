@@ -4,7 +4,7 @@ var loggers = require('@ama-team/voxengine-sdk').loggers,
     stdoutLogger,
     runtimeLogger,
     runtimeLogs,
-    unhandledPromisesLogger,
+    unhandledPromiseLogger,
     unhandledPromises;
 
 function StreamInterceptor(stream) {
@@ -35,41 +35,55 @@ function StreamInterceptor(stream) {
 
 function setup() {
 
-    beforeEach(function () {
-        if (!('allure' in global)) {
-            return;
-        }
-        unhandledPromises = [];
-        stdoutLogger = new StreamInterceptor(process.stdout).start();
-        stderrLogger = new StreamInterceptor(process.stderr).start();
-
-        runtimeLogs = [];
-        /** @type Writable */
-        var writer = {
-            write: function (message) {
-                runtimeLogs.push(message);
+    if (!('allure' in global)) {
+        global.allure = {
+            fake: true,
+            createStep: function (name, fn) {
+                return fn;
+            },
+            createAttachment: function (name, content, mimeType) {
+                console.log('Document ' + name + ' (' + mimeType + '):');
+                console.log(content);
             }
-        };
-        runtimeLogger = new loggers.slf4j(writer, loggers.LogLevel.All);
+        }
+    }
 
+    beforeEach(function () {
         unhandledPromises = [];
-        unhandledPromisesLogger = function (reason, promise) {
+        unhandledPromiseLogger = function (reason, promise) {
             var message = 'Unhandled promise rejection: \n' + reason + '\n';
             console.error(message);
             unhandledPromises.push({message: message, promise: promise});
         };
-        process.on('unhandledRejection', unhandledPromisesLogger);
+        process.on('unhandledRejection', unhandledPromiseLogger);
+
+        stdoutLogger = new StreamInterceptor(process.stdout).start();
+        stderrLogger = new StreamInterceptor(process.stderr).start();
+
+        /** @type Writable */
+        writer = {
+            write: function (message) {
+                console.log(message);
+                runtimeLogs.push(message);
+            }
+        };
+        runtimeLogs = [];
+        runtimeLogger = new loggers.slf4j(writer, loggers.LogLevel.All);
     });
 
     afterEach(function () {
-        if (!('allure' in global)) {
-            return;
+        stdoutLogger.stop();
+        stderrLogger.stop();
+        process.removeListener('unhandledRejection', unhandledPromiseLogger);
+        if (unhandledPromises.length > 0) {
+            this.test.error(new Error('Unhandled promises were fired during execution'));
         }
-        stdoutLogger.flush('stdout').stop();
-        stderrLogger.flush('stderr').stop();
-        process.removeListener('unhandledRejection', unhandledPromisesLogger);
+        stdoutLogger.flush('stdout');
+        stderrLogger.flush('stderr');
         if (unhandledPromises.length) {
-            var content = unhandledPromises.map(function (v) { return v.message; }).join('\n');
+            var content = unhandledPromises.map(function (v) {
+                return v.message;
+            }).join('\n');
             allure.createAttachment('unhandled-promises.log', content, 'text/plain');
         }
         if (runtimeLogs.length) {

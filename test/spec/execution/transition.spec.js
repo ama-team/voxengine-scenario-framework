@@ -12,7 +12,6 @@ var helper = require('../../helper/common'),
     assert = chai.assert;
 
 chai.use(require('chai-as-promised'));
-helper.setup();
 
 describe('/execution', function () {
 
@@ -33,6 +32,8 @@ describe('/execution', function () {
     // todo: test that cancellation tokens are cancelled when implied
     // todo: verify that correct hints are passed around
     describe('/transition.js', function () {
+
+        helper.setup();
 
         it('should successfully perform straightforward transition', function () {
             var value = {},
