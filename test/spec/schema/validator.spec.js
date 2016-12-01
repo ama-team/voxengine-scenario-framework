@@ -1,5 +1,5 @@
 var validator = require('../../../lib/schema/validator'),
-    schema = require('../../../lib/schema'),
+    schema = require('../../../lib/schema/definitions'),
     helper = require('../../helper/common'),
     chai = require('chai'),
     assert = chai.assert;

@@ -1,9 +1,11 @@
 var stateMachineModule = require('../../../lib/execution/state-machine'),
     StateMachine = stateMachineModule.StateMachine,
-    MachineState = stateMachineModule.MachineState,
-    MachineTerminationException = stateMachineModule.MachineTerminationException,
-    MachineTerminationCause = stateMachineModule.MachineTerminationCause,
+    MachineState = stateMachineModule.MachineStatus,
     ExecutionRuntime = require('../../../lib/execution/runtime').ExecutionRuntime,
+    schema = require('../../../lib/schema/definitions'),
+    TerminationCause = schema.TerminationCause,
+    concurrent = require('../../../lib/utility/concurrent'),
+    TimeoutException = concurrent.TimeoutException,
     loggers = require('@ama-team/voxengine-sdk').loggers,
     sinon = require('sinon'),
     chai = require('chai'),
@@ -19,7 +21,7 @@ describe('/execution', function () {
         logger;
         /**
          * @function
-         * @param {StateDeclaration[]} states
+         * @param {State[]} states
          * @return {StateMachine}
          */
     var factory;
@@ -51,8 +53,8 @@ describe('/execution', function () {
     describe('/state-machine.js', function () {
 
         it('should execute straightforward scenario', function () {
-            var transitionA = sinon.spy(helper.resolvedFactory({ trigger: {id: 'terminated'}})),
-                transitionB = sinon.spy(helper.resolved),
+            var transitionA = sinon.spy(helper.resolvedFactory({trigger: {id: 'terminated'}})),
+                transitionB = sinon.spy(helper.resolvedFactory({})),
                 scenario = [
                     {
                         id: 'initialized',
@@ -69,9 +71,11 @@ describe('/execution', function () {
                 ],
                 machine = factory(scenario);
 
-            return machine.run().then(function () {
-                assert(transitionA);
-                assert(transitionB);
+            return machine.run().then(function (result) {
+                assert(transitionA.calledOnce);
+                assert(transitionB.calledOnce);
+                assert(result.success);
+                assert.equal(result.cause, TerminationCause.Completion);
                 assert.equal(machine.getState(), MachineState.Terminated);
                 assert.equal(machine.getHistory()[0].id, scenario[0].id);
                 assert.equal(machine.getHistory()[1].id, scenario[1].id);
@@ -84,10 +88,10 @@ describe('/execution', function () {
                     setTimeout(function () {
                         self.transitionTo('terminated');
                     }, 1);
-                    return Promise.resolve({});
+                    return helper.infinite();
                 }),
-                abortHandler = sinon.spy(helper.resolved),
-                transitionB = sinon.spy(helper.resolved),
+                abortHandler = sinon.spy(helper.resolvedFactory({})),
+                transitionB = sinon.spy(helper.resolvedFactory({})),
                 scenario = [
                     {
                         id: 'initialized',
@@ -106,21 +110,26 @@ describe('/execution', function () {
                 ],
                 machine = factory(scenario);
 
-            machine.run().then(function () {
+            return machine.run().then(function (result) {
                 assert(transitionA.calledOnce);
                 assert(abortHandler.calledOnce);
                 assert(transitionB.calledOnce);
+                assert(result.success);
+                assert.equal(result.cause, TerminationCause.Completion);
             });
         });
 
         it('should timeout excessively long state', function () {
-            var transitionA = sinon.spy(helper.infinite),
+            var transitionA = sinon.spy(helper.resolvedFactory({})),
                 transitionB = sinon.spy(helper.resolvedFactory({})),
                 scenario = [
                     {
                         id: 'initialized',
                         transition: transitionA,
-                        entrypoint: true
+                        entrypoint: true,
+                        timeouts: {
+                            state: 1
+                        }
                     },
                     {
                         id: 'terminated',
@@ -130,11 +139,11 @@ describe('/execution', function () {
                 ],
                 machine = factory(scenario);
 
-            return machine.run().then(helper.restrictedBranchHandler, function (e) {
+            return machine.run().then(function (result) {
                 assert(transitionA.calledOnce);
                 assert.equal(transitionB.callCount, 0);
-                assert.instanceOf(e, MachineTerminationException);
-                assert.equal(e.cause, MachineTerminationCause.StateTimeout);
+                assert.notOk(result.success);
+                assert.equal(result.cause, TerminationCause.StateTimeout);
             });
         });
 
@@ -156,23 +165,30 @@ describe('/execution', function () {
                 ],
                 machine = factory(scenario);
 
-            return machine.run().then(helper.restrictedBranchHandler, function (error) {
+            return machine.run().then(function (result) {
                 assert(transitionA.calledOnce);
                 assert.equal(transitionB.callCount, 0);
-                assert.instanceOf(error, MachineTerminationException);
-                assert.equal(error.cause, MachineTerminationCause.TransitionFail);
-                assert.equal(error.error, e);
+                assert.notOk(result.success);
+                assert.equal(result.cause, TerminationCause.TransitionFailure);
+                assert.equal(result.error, e);
             });
         });
 
         it('should correctly report timed out transition', function () {
             var transitionA = sinon.spy(helper.infinite),
+                rescueHandler = sinon.spy(function (s, h, t, e) {
+                    throw e;
+                }),
                 transitionB = sinon.spy(helper.resolvedFactory({})),
                 scenario = [
                     {
                         id: 'initialized',
                         transition: transitionA,
-                        entrypoint: true
+                        entrypoint: true,
+                        onTransitionTimeout: rescueHandler,
+                        timeouts: {
+                            transition: 1
+                        }
                     },
                     {
                         id: 'terminated',
@@ -182,11 +198,14 @@ describe('/execution', function () {
                 ],
                 machine = factory(scenario);
 
-            return machine.run().then(helper.restrictedBranchHandler, function (error) {
+            return machine.run().then(function (result) {
                 assert(transitionA.calledOnce);
+                assert(rescueHandler.calledOnce);
                 assert.equal(transitionB.callCount, 0);
-                assert.instanceOf(error, MachineTerminationException);
-                assert.equal(error.cause, MachineTerminationCause.TransitionTimeout);
+                assert.notOk(result.success);
+                assert.equal(result.cause, TerminationCause.TransitionTimeout);
+                assert.instanceOf(result.error, TimeoutException);
+                assert.equal(result.state.id, 'initialized');
             });
         });
 
@@ -218,10 +237,43 @@ describe('/execution', function () {
 
             machine.transitionTo('terminated');
 
-            return machine.getCompletion().then(function () {
-                assert(transitionB.calledOnce);
+            return machine.getCompletion().then(function (result) {
+                assert(transitionA.calledOnce);
                 assert(abort.calledOnce);
                 assert(transitionB.calledOnce);
+
+                assert(result.success);
+                assert.equal(result.cause, TerminationCause.Completion);
+            });
+        });
+
+        it('should decline calls on terminated machine', function () {
+            var transitionA = sinon.spy(helper.resolvedFactory({trigger: {id: 'terminated'}})),
+                transitionB = sinon.spy(helper.resolvedFactory({})),
+                scenario = [
+                    {
+                        id: 'initialized',
+                        transition: transitionA,
+                        entrypoint: true
+                    },
+                    {
+                        id: 'terminated',
+                        transition: transitionB,
+                        terminal: true
+                    }
+                ],
+                machine = factory(scenario);
+
+            return machine.run().then(function () {
+                return machine.run();
+            }).then(function (result) {
+                assert.isFalse(result.success);
+                assert.equal(result.cause, TerminationCause.InvalidUsage);
+            }).then(function () {
+                return machine.transitionTo('initialized');
+            }).then(function (result) {
+                assert.isFalse(result.success);
+                assert.equal(result.cause, TerminationCause.InvalidUsage);
             });
         });
     });

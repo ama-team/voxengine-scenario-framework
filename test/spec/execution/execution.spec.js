@@ -1,7 +1,9 @@
 var helper = require('../../helper/common'),
-    schema = require('../../../lib/schema'),
+    schema = require('../../../lib/schema/definitions'),
     MachineTerminationResult = schema.MachineTerminationResult,
     TerminationCause = schema.TerminationCause,
+    Scenario = schema.Scenario,
+    TriggerType = schema.TriggerType,
     execution = require('../../../lib/execution/execution'),
     Execution = execution.Execution,
     chai = require('chai'),
@@ -26,17 +28,16 @@ describe('/execution', function () {
             }
         },
         scenarioFactory = function (onTermination, onTerminationTimeout, timeouts) {
-            timeouts = timeouts || {onTermination: null, onTerminationTimeout: null};
+            timeouts = timeouts || new schema.Timeouts({onTermination: null, onTerminationTimeout: null});
             onTerminationTimeout = onTerminationTimeout || function (token, error) {
                 throw error;
             };
             onTermination = onTermination || helper.resolvedFactory({});
-            return {
-                states: [],
-                onTermination: sinon.spy(onTermination),
-                onTerminationTimeout: sinon.spy(onTerminationTimeout),
-                timeouts: timeouts
-            };
+            var scenario = new Scenario([], TriggerType.Http);
+            scenario.onTermination = sinon.spy(onTermination);
+            scenario.onTerminationTimeout = sinon.spy(onTerminationTimeout);
+            scenario.timeouts = timeouts;
+            return scenario;
         };
 
     describe('/execution.js', function () {
@@ -157,9 +158,7 @@ describe('/execution', function () {
                 var scenario = scenarioFactory(),
                     runtime = runtimeFactory({}),
                     machine = {
-                        run: sinon.spy(function () {
-                            return Promise.resolve({});
-                        })
+                        run: sinon.spy(helper.resolvedFactory({}))
                     },
                     execution = new Execution(scenario, machine, runtime, helper.getLogger());
 
@@ -172,7 +171,18 @@ describe('/execution', function () {
             });
 
             it('should timeout excessively long scenario', function () {
-                assert.fail('Not implemented');
+                var scenario = scenarioFactory(null, null, {scenario: 1}),
+                    runtime = runtimeFactory(),
+                    machine = {
+                        run: sinon.spy(helper.infinite)
+                    },
+                    execution = new Execution(scenario, machine, runtime, helper.getLogger());
+
+                return execution.run().then(function (result) {
+                    assert(!result.success);
+                    assert.equal(result.cause, TerminationCause.ScenarioTimeout);
+                    assert(machine.run.calledOnce);
+                });
             });
 
         });

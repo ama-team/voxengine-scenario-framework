@@ -2,9 +2,11 @@
 var helper = require('../../helper/common'),
     transitions = require('../../../lib/execution/transition'),
     concurrent = require('../../../lib/utility/concurrent'),
+    TimeoutException = concurrent.TimeoutException,
+    schema = require('../../../lib/schema/definitions'),
+    TerminationCause = schema.TerminationCause,
     Transition = transitions.Transition,
     TransitionState = transitions.TransitionState,
-    TransitionExecutionException = transitions.TransitionExecutionException,
     ExecutionRuntime = require('../../../lib/execution/runtime').ExecutionRuntime,
     sinon = require('sinon'),
     chai = require('chai'),
@@ -17,7 +19,7 @@ describe('/execution', function () {
 
     /**
      * @function
-     * @param {StateDeclaration[]} states
+     * @param {State[]} states
      * @return {StateMachine}
      */
     var factory;
@@ -36,8 +38,8 @@ describe('/execution', function () {
         helper.setup();
 
         it('should successfully perform straightforward transition', function () {
-            var value = {},
-                fn = sinon.spy(helper.resolvedFactory(value)),
+            var directive = {},
+                fn = sinon.spy(helper.resolvedFactory(directive)),
                 origin = { id: 'initialized' },
                 target = {
                     id: 'terminated',
@@ -48,9 +50,11 @@ describe('/execution', function () {
                 },
                 transition = factory(origin, target);
 
-            return transition.run().then(function (v) {
+            return transition.run().then(function (result) {
                 assert(fn.calledOnce);
-                assert.equal(v, value);
+                assert(result.success);
+                assert.equal(result.directive, directive);
+                assert.equal(result.cause, TerminationCause.Completion);
                 assert.equal(transition.getState(), TransitionState.Completed);
             });
         });
@@ -78,23 +82,22 @@ describe('/execution', function () {
 
         it('should correctly propagate transition exception', function () {
             var error = new Error(),
-                fn = sinon.spy(helper.rejectedFactory(error)),
+                handler = sinon.spy(helper.rejectedFactory(error)),
                 origin = { id: 'initialized' },
                 target = {
                     id: 'terminated',
-                    transition: fn,
+                    transition: handler,
                     timeouts: {
                         transition: 1
                     }
                 },
                 transition = factory(origin, target);
 
-            return transition.run().then(function () {
-                assert.fail('This branch should not have been executed');
-            }, function (e) {
-                assert.instanceOf(e, TransitionExecutionException);
-                assert.equal(e.error, error);
-                assert.equal(e.status, TransitionState.Failed);
+            return transition.run().then(function (result) {
+                assert(handler.calledOnce);
+                assert(!result.success);
+                assert.equal(result.cause, TerminationCause.TransitionFailure);
+                assert.equal(result.error, error);
             });
         });
 
@@ -114,19 +117,19 @@ describe('/execution', function () {
                 },
                 transition = factory(origin, target);
 
-            return transition.run().then(helper.restrictedBranchHandler, function (e) {
+            return transition.run().then(function (result) {
                 assert(handler.calledOnce);
                 assert(rescueHandler.calledOnce);
-                assert.instanceOf(e, TransitionExecutionException);
-                assert.equal(e.status, TransitionState.TimedOut);
-                assert.equal(e.error, rescueHandler.getCall(0).args[3]);
+                assert(!result.success);
+                assert.equal(result.cause, TerminationCause.TransitionTimeout);
+                assert.equal(result.error, rescueHandler.getCall(0).args[3]);
             });
         });
 
         it('should save timed out transition with rescue handler', function () {
-            var value = {x: 12},
+            var directive = {transitionedTo: 'narnia'},
                 handler = sinon.spy(helper.infinite),
-                rescueHandler = sinon.spy(helper.resolvedFactory(value)),
+                rescueHandler = sinon.spy(helper.resolvedFactory(directive)),
                 origin = { id: 'initialized' },
                 target = {
                     id: 'terminated',
@@ -139,10 +142,12 @@ describe('/execution', function () {
                 },
                 transition = factory(origin, target);
 
-            return transition.run().then(function (v) {
+            return transition.run().then(function (result) {
                 assert(handler.calledOnce);
                 assert(rescueHandler.calledOnce);
-                assert.equal(v, value);
+                assert(result.success);
+                assert.equal(result.cause, TerminationCause.Completion);
+                assert.equal(result.directive, directive);
                 assert.equal(transition.getState(), TransitionState.Completed);
             });
         });
@@ -163,11 +168,12 @@ describe('/execution', function () {
                 },
                 transition = factory(origin, target);
 
-            return transition.run().then(helper.restrictedBranchHandler, function (e) {
+            return transition.run().then(function (result) {
                 assert(handler.calledOnce);
                 assert(rescueHandler.calledOnce);
-                assert.instanceOf(e, TransitionExecutionException);
-                assert.equal(e.error, error);
+                assert.notOk(result.success);
+                assert.equal(result.cause, TerminationCause.TransitionFailure);
+                assert.equal(result.error, error);
                 assert.equal(transition.getState(), TransitionState.Failed);
             });
         });
@@ -187,19 +193,20 @@ describe('/execution', function () {
                 },
                 transition = factory(origin, target);
 
-            return transition.run().then(helper.restrictedBranchHandler, function (e) {
+            return transition.run().then(function (result) {
                 assert(handler.calledOnce);
                 assert(rescueHandler.calledOnce);
-                assert.instanceOf(e, TransitionExecutionException);
-                assert.instanceOf(e.error, concurrent.TimeoutException);
+                assert(!result.success);
+                assert.equal(result.cause, TerminationCause.TransitionTimeout);
+                assert.instanceOf(result.error, TimeoutException);
                 assert.equal(transition.getState(), TransitionState.TimedOut);
             });
         });
 
         it('should successfully abort running transition', function () {
-            var value = {},
+            var directive = {},
                 handler = sinon.spy(helper.infinite),
-                abortHandler = sinon.spy(helper.resolvedFactory(value)),
+                abortHandler = sinon.spy(helper.resolvedFactory(directive)),
                 origin = { id: 'initialized' },
                 target = {
                     id: 'terminated',
@@ -216,10 +223,11 @@ describe('/execution', function () {
 
             assert.equal(transition.getState(), TransitionState.Running);
 
-            return transition.abort().then(function (v) {
+            return transition.abort().then(function (result) {
                 assert(handler.calledOnce);
                 assert(abortHandler.calledOnce);
-                assert.equal(v, value);
+                assert.notOk(result.success);
+                assert.equal(result.cause, TerminationCause.Abortion);
                 assert.equal(transition.getState(), TransitionState.Aborted);
             });
         });
@@ -242,11 +250,12 @@ describe('/execution', function () {
 
             transition.run();
 
-            return transition.abort().then(helper.restrictedBranchHandler, function (e) {
+            return transition.abort().then(function (result) {
                 assert(handler.calledOnce);
                 assert(abortHandler.calledOnce);
-                assert.instanceOf(e, TransitionExecutionException);
-                assert.equal(e.error, error);
+                assert.notOk(result.success);
+                assert.equal(result.cause, TerminationCause.AbortFailure);
+                assert.equal(result.error, error);
                 assert.equal(transition.getState(), TransitionState.Failed);
             });
         });
@@ -273,21 +282,22 @@ describe('/execution', function () {
 
             transition.run();
 
-            return transition.abort().then(helper.restrictedBranchHandler, function (e) {
+            return transition.abort().then(function (result) {
                 assert(handler.calledOnce);
                 assert(abortHandler.calledOnce);
                 assert(abortTimeoutHandler.calledOnce);
-                assert.instanceOf(e, TransitionExecutionException);
-                assert.instanceOf(e.error, concurrent.TimeoutException);
+                assert.notOk(result.success);
+                assert.equal(result.cause, TerminationCause.AbortTimeout);
+                assert.instanceOf(result.error, TimeoutException);
                 assert.equal(transition.getState(), TransitionState.TimedOut);
             });
         });
 
         it('should save timed out transition abort with abort rescue handler', function () {
-            var value = {},
+            var directive = {},
                 handler = sinon.spy(helper.infinite),
                 abortHandler = sinon.spy(helper.infinite),
-                abortTimeoutHandler = sinon.spy(helper.resolvedFactory(value)),
+                abortTimeoutHandler = sinon.spy(helper.resolvedFactory(directive)),
                 origin = { id: 'initialized' },
                 target = {
                     id: 'terminated',
@@ -304,11 +314,13 @@ describe('/execution', function () {
 
             transition.run();
 
-            return transition.abort().then(function (v) {
+            return transition.abort().then(function (result) {
                 assert(handler.calledOnce);
                 assert(abortHandler.calledOnce);
                 assert(abortTimeoutHandler.calledOnce);
-                assert.equal(v, value);
+                assert.notOk(result.success);
+                assert.equal(result.cause, TerminationCause.Abortion);
+                assert.equal(result.directive, directive);
                 assert.equal(transition.getState(), TransitionState.Aborted);
             });
         });
@@ -334,12 +346,13 @@ describe('/execution', function () {
 
             transition.run();
 
-            return transition.abort().then(helper.restrictedBranchHandler, function (e) {
+            return transition.abort().then(function (result) {
                 assert(handler.calledOnce);
                 assert(abortHandler.calledOnce);
                 assert(abortTimeoutHandler.calledOnce);
-                assert.instanceOf(e, TransitionExecutionException);
-                assert.equal(e.error, error);
+                assert.notOk(result.success);
+                assert.equal(result.cause, TerminationCause.AbortFailure);
+                assert.equal(result.error, error);
                 assert.equal(transition.getState(), TransitionState.Failed);
             });
         });
@@ -364,13 +377,13 @@ describe('/execution', function () {
 
             transition.run();
 
-            return transition.abort().then(helper.restrictedBranchHandler, function (e) {
+            return transition.abort().then(function (result) {
                 assert(handler.calledOnce);
                 assert(abortHandler.calledOnce);
                 assert(abortTimeoutHandler.calledOnce);
-                assert.instanceOf(e, TransitionExecutionException);
-                assert.instanceOf(e.error, concurrent.TimeoutException);
                 assert.equal(transition.getState(), TransitionState.TimedOut);
+                assert.equal(result.cause, TerminationCause.AbortTimeout);
+                assert.instanceOf(result.error, concurrent.TimeoutException);
             });
         });
 
@@ -386,10 +399,9 @@ describe('/execution', function () {
                 // explicitly passing invalid state
                 transition = factory(origin, target);
 
-            return transition.run().then(helper.restrictedBranchHandler, function (e) {
-                assert.instanceOf(e, TransitionExecutionException);
-                assert.ok(e.error);
-                assert.equal(e.status, TransitionState.Exploded);
+            return transition.run().then(function(result) {
+                assert(!result.success);
+                assert.equal(result.cause, TerminationCause.FrameworkFailure);
             });
         })
     });
