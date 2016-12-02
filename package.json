@@ -2,7 +2,7 @@
   "name": "@ama-team/voxengine-scenario-framework",
   "version": "0.1.0",
   "description": "Framework to run VoxImplant scenarios",
-  "main": "index.js",
+  "main": "lib/index.js",
   "scripts": {
     "clean": "rm -rf report",
     "test": "node_modules/.bin/mocha",

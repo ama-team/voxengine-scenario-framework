@@ -22,9 +22,9 @@ var scenario = {
             id: 'connected',
             entrypoint: true,
             transition: function () {
-                var self = this;
+                var self = this,
+                    call = this.data.call = VoxEngine.callPSTN(this.arguments.number);
                 return new Promise(function(resolve, reject) {
-                    var call = self.data.call = VoxEngine.callPSTN(number);
                     call.addEventListener(CallEvents.Connected, resolve({trigger: 'disconnected'}));
                     call.addEventListener(CallEvents.Failed, reject({}));
                 });
@@ -46,10 +46,11 @@ var scenario = {
             id: 'disconnected',
             terminal: true,
             transition: function() {
-                self.data.call.hangup();
+                this.data.call.hangup();
             }
         }
-    ]
+    ],
+    trigger: TriggerType.Http
 }
 ```
 
@@ -62,20 +63,31 @@ triggers next transition, eventually reaching state with `terminal`
 property set to `true`, and at this point it knows there won't be any 
 further state.
 
-The full example would look like that:
+To launch such scenario you will need code like following:
 
 ```js
-var framework = require('@ama-team/voxengine-scenario-framework'),
+var sdk = require('@ama-team/voxengine-sdk'),
+    framework = require('@ama-team/voxengine-scenario-framework'),
     scenario = {
         // stripped off for clarity    
+    },
+    settings = {
+        logLevel: sdk.loggers.LogLevel.Info,
+        customDataDeserializer: function(customData) {
+            try {
+                return JSON.parse(customData);
+            } catch (e) {
+                return {};
+            }
+        }
     };
 
-framework.prepare(scenario).auto();
+framework.run(scenario, settings);
 ```
 
 After that you just need to set up your bundling machine to produce
 single-file script, and you're done. Don't forget to strip the 
-comments: VoxImplant restricts scripts bigger than 128kb.
+comments - VoxImplant restricts scripts bigger than 128kb.
 
 ## Diving deeper
 
@@ -89,15 +101,15 @@ This framework follows several ideas:
 - Every lengthy action (transition, abort, staying in particular state)
 may be timed out. Scenario may be timed out as well.
 - Every failed action means that scenario has failed. The only 
-exception is made for failed aborts.
+exception is made for failed aborted transitions.
 - Every timed out lengthy action may have rescue handler, so it may
 save scenario from failure. Rescue handlers are run only in case of
 timeout event, in every other case lengthy action must save itself on
 it's own.
 - Every lengthy action is fed with cancellation token that allows 
-action to discover it is cancelled
+action to discover it is cancelled or timed out.
 - Every user-defined function (e.g. transition) is fed with current 
-scenario execution as `this`
+scenario execution as `this`.
 - While there are timeout defaults, all timeouts are configurable, and
 no timeout is hardcoded.
 - Promises over listeners.
@@ -130,12 +142,8 @@ var state = {
     onAbortTimeout: function (previousState, hints, cancellationToken, error) {
       
     },
-    // runs if state timeout has been set (that's is not true by default)
-    onTimeout: function() {
-        
-    },
-    // values that equal to false or lesser than zero are treated as 'no timeout'
-    // milliseconds is used as time unit
+    // values equal to false or lesser than zero are treated as 'no timeout'
+    // millisecond is used as time unit
     timeouts: {
         // useful to cancel long dials automatically
         transition: 45 * 1000,
@@ -151,7 +159,7 @@ var state = {
 
 Whenever framework receives call for transition into state X, it calls 
 `transition` property and waits for timeout being set. If transition
-timeouts, corresponding rescue handler is called. Rescue handler may
+timeouts, corresponding rescue handler is called. Rescue handler 
 returns promise that is treated just as one returned by transition, but
 default handler simply passes error through. Both transition and rescue
 handler get same `previousState` and `hints` arguments, but 
@@ -159,7 +167,7 @@ handler get same `previousState` and `hints` arguments, but
 
 Transition / rescue handler chain return value is checked for
 `transitionedTo` and `trigger` properties. The first one allows to 
-override state scenario has ended in, the second one allows to trigger
+override state scenario has reached, the second one allows to trigger
 next transition instantly:
  
 ```js
@@ -167,13 +175,9 @@ var full = {
     id: 'initialized',
     transition: function () {
         return Promise.resolve({
-            transitionedTo: {
-                id: 'truly-initialized',
-                stage: 'some-other-stage'
-            },
+            transitionedTo: 'truly-initialized',
             trigger: {
                 id: 'terminated',
-                stage: 'termination',
                 hints: {
                     callTookLessThanThirtySeconds: true
                 }
@@ -186,9 +190,9 @@ var shortcuts = {
     id: 'initialized',
     transition: function () {
         return Promise.resolve({
-            transitionedTo: 'some-other-stage:truly-initialized',
+            transitionedTo: 'truly-initialized',
             // sorry, no hints in shortcut
-            trigger: 'termination:terminated'
+            trigger: 'terminated'
         });
     }
 }
@@ -196,20 +200,16 @@ var shortcuts = {
 
 In case transition / rescue handler chain 
 ends up with a rejected promise, the whole scenario is considered 
-failed and terminate sequence is launched. If promise resolve/reject
-value has `terminationHints` property, it is passed to termination 
-handler.
+failed and terminate sequence is launched.
 
-Abort and abort rescue handler pair act in the same way, being called
-whenever new transition is issued while current one hasn't ended.
+Abort and abort rescue handler pair act in the same way (except for 
+result processing), being called whenever new transition is issued 
+while current one hasn't ended.
 
 ### Scenario
 
-Scenario schema is much simpler:
-
 ```js
-var schema = {
-    schemaVersion: 'v0.1', // currently does nothing
+var scenario = {
     id: 'callback', // used for logging only
     version: '0.1.0', // used for logging only
     environment: 'production', // used for logging only
@@ -231,6 +231,7 @@ var schema = {
         // rescue handler
     },
     timeouts: {
+        // here you can specify scenario timeouts and state tiemout defaults
         scenario: null,
         onTermination: 15 * 1000,
         onTerminationTimeout: 15 * 1000,
@@ -238,17 +239,16 @@ var schema = {
         transition: 45 * 1000,
         onTransitionTimeout: 15 * 1000,
         abort: 15 * 1000,
-        onAbortTimeout: 3 * 1000,
-        onStateTimeout: 3 * 1000
+        onAbortTimeout: 3 * 1000
     }
 };
 ```
 
 Essentially, you may define scenario using only `states` and `trigger` 
-properties. Scenario has to have one `entrypoint` state and at least 
-one `terminal` state to be successfully validated.
+properties. Scenario has to have exactly one `entrypoint` state and at 
+least one `terminal` state to be successfully validated.
 
-### ScenarioExecution
+### Execution
 
 Execution is an object that is passed as `this` to all user-defined
 actions, which allows to store intermediate data, pass dependency 
@@ -256,7 +256,7 @@ injections and call `transitionTo` method:
 
 ```js
 var execution = {
-    data: {}, // put here anything you wish,
+    data: {}, // put here anything you wish, inteneded to store data between states
     container: {}, // dependency injection container
     arguments: {}, // arguments passed by trigger
     debug: function (message) {
@@ -265,13 +265,8 @@ var execution = {
     info: function (message) {},
     warn: function (message) {},
     error: function (message) {},
-    run: function (arguments) {}, // runs scenario with specified arguments
-    auto: function () {}, // binds scenario to triggers and automatically fetches arguments
-    getCurrentState: function () {}, // get current scenario state
-    getHistory: function () {}, // get list of states scenario has been in
-    getCompletionHook: function () {
-        // returns completion promise which you will not need since 
-        // it will resolve after VoxEngine.terminate()
+    transitionTo: function (state, hints) {
+        // allows to trigger transitions whenever you need
     }
 }
 ```
@@ -285,7 +280,7 @@ easily done via corresponding call:
 var framework = require('@ama-team/voxengine-scenario-framework'),
     scenario = {};
 
-    validationResult = framework.validate(scenario);
+    validationResult = framework.validate(framework.normalize(scenario));
 ```
 
 validation result looks like this:
@@ -303,24 +298,31 @@ Please note that `valid` property is not the same as `violations`
 property emptiness, some reported violations may not convert scenario to
 invalid one.
 
-### Running
-
-TBD
-
 ## Concurrency notes
 
-TBD
+This library is built with run-to-completion model in mind. VoxImplant
+engineers confirmed that this model is used by their interpreter.
 
 ## Other notes
 
 - Please note that at the moment of this document being written ES6
 **had not been supported by VoxImplant**. While you can use transpiler
-to transform your scripts to ES5, i personally recommended not to use
+to transform your scripts to ES5, i personally recommend not to use
 ES6 until it is officially supported and write everything in ES5 - it
 may save you nerves during debug.
-- We have a package `@ama-team/voxengine-references` that contains jsdoc
-definitions for VoxEngine internals. Be sure to install it if you need
-autocompletion in IDE other than provided by official web UI.
-- Check `@ama-team/voximplant-publisher` as well
-- We have plans for automated runner and any testing framework
+- It is also strongly recommended to strip all comments from framework,
+but not to minify it (at least agressively) to simplify debug in case 
+something won't work as expected.
+- There is also a package `@ama-team/voxengine-definitions` that 
+contains jsdoc definitions for VoxEngine internals. Be sure to install 
+it if you need autocompletion in IDE other than provided by official 
+web UI.
+- `@ama-team/voximplant-publisher` is lazily developed and may be 
+already released at this moment
+- There are plans for automated runner and any testing framework
 integration but oh god where do we get such amount of time
+
+## Future plans
+
+- onTimeout state handlers
+- Better documentation
