@@ -6,7 +6,9 @@ var stateMachineModule = require('../../../lib/execution/state-machine'),
     TerminationCause = schema.TerminationCause,
     concurrent = require('../../../lib/utility/concurrent'),
     TimeoutException = concurrent.TimeoutException,
-    loggers = require('@ama-team/voxengine-sdk').loggers,
+    slf4j = require('@ama-team/voxengine-sdk').logger.slf4j,
+    Slf4j = slf4j.Slf4j,
+    LogLevel = slf4j.Level,
     sinon = require('sinon'),
     chai = require('chai'),
     should = chai.should(),
@@ -33,7 +35,8 @@ describe('/execution', function () {
                 logs.push(message);
             }
         };
-        logger = new loggers.slf4j(writer, loggers.LogLevel.All);
+        var name = 'ama-team.voxengine-scenario-framework.test.spec.execution.state-machine';
+        logger = new Slf4j(name, LogLevel.All, writer);
         factory = function (states) {
             states.forEach(function (state) { state.timeouts = state.timeouts || {}; });
             return new StateMachine(states, new ExecutionRuntime(), logger);

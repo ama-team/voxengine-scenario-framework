@@ -80,6 +80,17 @@ describe('/schema', function () {
                 assert(result.violations.environment);
             });
 
+            it('should block on missing scenario trigger', function () {
+                var scenario = scenarioFactory([stateFactory()]),
+                    result;
+
+                scenario.trigger = null;
+                result = dumper(validator.validate(scenario));
+
+                assert(!result.valid);
+                assert(result.violations.trigger);
+            });
+
             it('should block on missing scenario onTermination handler', function () {
                 var scenario = scenarioFactory([stateFactory()]),
                     result;

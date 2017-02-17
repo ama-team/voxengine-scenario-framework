@@ -326,3 +326,8 @@ integration but oh god where do we get such amount of time
 
 - onTimeout state handlers
 - Better documentation
+- Possibly dropping down OOP purity level (too many `this` calls for 
+JavaScript)
+- Possibly converting `states: [{id: '<id>'}]` schema to 
+`states: { <id>: {} }`
+- Possibly adding stages concept 

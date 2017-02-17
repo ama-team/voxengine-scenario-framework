@@ -1,4 +1,6 @@
-var loggers = require('@ama-team/voxengine-sdk').loggers,
+var slf4j = require('@ama-team/voxengine-sdk').logger.slf4j,
+    Slf4j = slf4j.Slf4j,
+    LogLevel = slf4j.Level,
     chai = require('chai'),
     stderrLogger,
     stdoutLogger,
@@ -68,7 +70,7 @@ function setup() {
             }
         };
         runtimeLogs = [];
-        runtimeLogger = new loggers.slf4j(writer, loggers.LogLevel.All);
+        runtimeLogger = new Slf4j('ama-team.voxengine-scenario-framework.test.helper.common', LogLevel.All, writer);
     });
 
     afterEach(function () {
