@@ -7,7 +7,7 @@ report
 .idea
 
 # CI files
-.travis.yml
+circle.yml
 .istanbul.yml
 
 # Other
