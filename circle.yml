@@ -10,11 +10,10 @@ general:
     - report/xunit.xml
 test:
   override:
-    - 'npm run test:report'
-    - 'npm run test:coverage'
+    - 'npm run test:coverage:report'
   post:
-    - mkdir -p $CIRCLE_TEST_REPORTS/junit
-    - cp report/xunit.xml $CIRCLE_TEST_REPORTS/junit/test-results.xml
+    - 'npm run allure:report'
+    - 'npm run coveralls'
 deployment:
   npm-release:
     tag: /^\d+\.\d+\.\d+$/
