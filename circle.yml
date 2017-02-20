@@ -1,3 +1,8 @@
+machine:
+  post:
+    - sudo apt-add-repository ppa:yandex-qatools/allure-framework
+    - sudo apt-get update
+    - sudo apt-get install allure-commandline
 general:
   artifacts:
     - report/allure
@@ -5,9 +10,10 @@ general:
     - report/xunit.xml
 test:
   override:
-    - npm test
-    - 'npm test:coverage'
+    - 'npm run test:report'
+    - 'npm run test:coverage'
   post:
+    - mkdir -p $CIRCLE_TEST_REPORTS/junit
     - cp report/xunit.xml $CIRCLE_TEST_REPORTS/junit/test-results.xml
 deployment:
   npm-release:
