@@ -1,0 +1,21 @@
+machine:
+  node:
+    version: 0.11.8
+general:
+  artifacts:
+    - report/allure
+    - report/coverage
+    - report/xunit.xml
+test:
+  override:
+    - npm test
+    - 'npm test:coverage'
+  post:
+    - cp report/xunit.xml $CIRCLE_TEST_REPORTS/junit/test-results.xml
+deployment:
+  npm-release:
+    tag: /^\d+\.\d+\.\d+$/
+    owner: ama-team
+    commands:
+      - node_modules/.bin/npm-cli-login
+      - npm publish --access public

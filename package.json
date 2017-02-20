@@ -46,7 +46,8 @@
   },
   "homepage": "https://github.com/ama-team/voxengine-scenario-framework#readme",
   "dependencies": {
-    "@ama-team/voxengine-sdk": "^0.1.0"
+    "@ama-team/voxengine-sdk": "^0.1.0",
+    "npm-cli-login": "0.0.10"
   },
   "devDependencies": {
     "@ama-team/voxengine-definitions": "^0.1.0",
