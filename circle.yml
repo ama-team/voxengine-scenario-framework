@@ -1,8 +1,8 @@
 machine:
   post:
-    - sudo apt-add-repository ppa:yandex-qatools/allure-framework
-    - sudo apt-get update
-    - sudo apt-get install allure-commandline
+    - sudo apt-add-repository ppa:yandex-qatools/allure-framework -y
+    - sudo apt-get update -yq
+    - sudo apt-get install allure-commandline -yq
 general:
   artifacts:
     - report/allure
