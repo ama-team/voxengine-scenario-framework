@@ -1,7 +1,7 @@
 # Node files
 npm-debug.log
 node_modules
-report
+build
 
 # IDE files
 .idea

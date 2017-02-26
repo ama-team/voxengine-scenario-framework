@@ -11,7 +11,7 @@ instrumentation:
     preserve-comments: false
     complete-copy: false
     save-baseline: false
-    baseline-file: ./report/coverage/coverage-baseline.json
+    baseline-file: ./build/report/coverage/coverage-baseline.json
     include-all-sources: true
     include-pid: false
     es-modules: false
@@ -19,7 +19,7 @@ reporting:
     print: summary
     reports:
         - lcov
-    dir: ./report/coverage
+    dir: ./build/report/coverage
     watermarks:
         statements: [50, 80]
         lines: [50, 80]

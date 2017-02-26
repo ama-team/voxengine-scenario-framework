@@ -3,21 +3,19 @@ machine:
     - sudo apt-add-repository ppa:yandex-qatools/allure-framework -y
     - sudo apt-get update -yq
     - sudo apt-get install allure-commandline -yq
-general:
-  artifacts:
-    - report/allure
-    - report/coverage
-    - report/xunit.xml
 test:
-  override:
-    - 'npm run test:coverage:report'
   post:
-    - 'npm run allure:report'
-    - 'npm run coveralls'
+    - 'npm run test:report'
+    # in case tag is pushed, coveralls will try to find current branch and will end on master
+    - '[ -z "$CIRCLE_BRANCH" ] || npm run test:report:publish'
+    - npm run doc
+    - mkdir -p $CIRCLE_TEST_REPORTS/junit
+    - cp build/data/xunit/junit.xml $CIRCLE_TEST_REPORTS/junit/junit.xml
+    - cp -r build/* $CIRCLE_ARTIFACTS/
 deployment:
   npm-release:
     tag: /^\d+\.\d+\.\d+$/
     owner: ama-team
     commands:
-      - node_modules/.bin/npm-cli-login
+      - echo '//registry.npmjs.org/:_authToken=${NPM_TOKEN}' > ~/.npmrc
       - npm publish --access public
