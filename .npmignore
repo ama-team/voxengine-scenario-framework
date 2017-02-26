@@ -1,13 +1,13 @@
 # Node files
 npm-debug.log
 node_modules
-report
+build
 
 # IDE files
 .idea
 
 # CI files
-.travis.yml
+circle.yml
 .istanbul.yml
 
 # Other

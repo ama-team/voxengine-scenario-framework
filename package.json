@@ -4,16 +4,13 @@
   "description": "Framework to run VoxImplant scenarios",
   "main": "lib/index.js",
   "scripts": {
-    "clean": "rm -rf report",
-    "test": "node_modules/.bin/mocha",
-    "test:coverage:report": "node_modules/.bin/istanbul cover node_modules/.bin/_mocha",
-    "coveralls": "cat report/coverage/lcov.info | node_modules/.bin/coveralls",
-    "test:coverage": "npm run test:coverage:report && npm run coveralls",
-    "test:ignore": "npm run test || true",
-    "test:report": "npm run allure:clean && npm run test:ignore && npm run allure:report",
-    "allure:clean": "rm -rf report/allure-results report/allure",
-    "allure:report": "allure generate -o report/allure -- report/allure-results",
-    "allure:open": "allure report open -o report/allure"
+    "clean": "rm -rf build",
+    "test": "node_modules/.bin/istanbul cover node_modules/.bin/_mocha",
+    "test:report:publish:coverage": "cat build/report/coverage/lcov.info | node_modules/.bin/coveralls",
+    "test:report:publish": "npm run test:report:publish:coverage",
+    "test:report": "npm run test:report:allure",
+    "test:report:allure": "allure generate -o build/report/allure -- build/data/allure",
+    "doc": "node_modules/.bin/jsdoc -d build/doc lib"
   },
   "engines": {},
   "repository": {
@@ -46,7 +43,8 @@
   },
   "homepage": "https://github.com/ama-team/voxengine-scenario-framework#readme",
   "dependencies": {
-    "@ama-team/voxengine-sdk": "^0.1.0"
+    "@ama-team/voxengine-sdk": "^0.1.0",
+    "npm-cli-login": "0.0.10"
   },
   "devDependencies": {
     "@ama-team/voxengine-definitions": "^0.1.0",
@@ -54,6 +52,7 @@
     "chai-as-promised": "^6.0.0",
     "coveralls": "^2.11.15",
     "istanbul": "^0.4.5",
+    "jsdoc": "^3.4.3",
     "karma": "^1.3.0",
     "karma-coverage": "^1.1.1",
     "mocha": "^3.1.2",

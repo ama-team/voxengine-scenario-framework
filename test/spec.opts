@@ -1,3 +1,0 @@
---recursive
---reporter mocha-multi-reporters --reporter-options configFile=test/multi.json
---timeout 100

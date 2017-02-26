@@ -1,7 +1,9 @@
 # Node files
 npm-debug.log
 node_modules
-report
+
+# Build-related files
+build
 
 # IDE files
 .idea
