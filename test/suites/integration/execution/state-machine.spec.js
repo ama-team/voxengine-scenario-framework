@@ -1,13 +1,13 @@
 /* eslint-env mocha */
 /* global allure */
 
-var stateMachineModule = require('../../../lib/execution/state-machine')
+var stateMachineModule = require('../../../../lib/execution/state-machine')
 var StateMachine = stateMachineModule.StateMachine
 var MachineState = stateMachineModule.MachineStatus
-var ExecutionRuntime = require('../../../lib/execution/runtime').ExecutionRuntime
-var schema = require('../../../lib/schema/definitions')
+var ExecutionRuntime = require('../../../../lib/execution/runtime').ExecutionRuntime
+var schema = require('../../../../lib/schema/definitions')
 var TerminationCause = schema.TerminationCause
-var concurrent = require('../../../lib/utility/concurrent')
+var concurrent = require('../../../../lib/utility/concurrent')
 var TimeoutException = concurrent.TimeoutException
 var slf4j = require('@ama-team/voxengine-sdk').logger.slf4j
 var Slf4j = slf4j.Slf4j
@@ -15,7 +15,7 @@ var LogLevel = slf4j.Level
 var sinon = require('sinon')
 var chai = require('chai')
 var assert = chai.assert
-var helper = require('../../helper/common')
+var helper = require('../../../helper/common')
 
 chai.should()
 chai.use(require('chai-as-promised'))

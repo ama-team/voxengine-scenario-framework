@@ -1,15 +1,15 @@
 /* eslint-env mocha */
 
 // noinspection SpellCheckingInspection
-var helper = require('../../helper/common')
-var transitions = require('../../../lib/execution/transition')
-var concurrent = require('../../../lib/utility/concurrent')
+var helper = require('../../../helper/common')
+var transitions = require('../../../../lib/execution/transition')
+var concurrent = require('../../../../lib/utility/concurrent')
 var TimeoutException = concurrent.TimeoutException
-var schema = require('../../../lib/schema/definitions')
+var schema = require('../../../../lib/schema/definitions')
 var TerminationCause = schema.TerminationCause
 var Transition = transitions.Transition
 var TransitionState = transitions.TransitionState
-var ExecutionRuntime = require('../../../lib/execution/runtime').ExecutionRuntime
+var ExecutionRuntime = require('../../../../lib/execution/runtime').ExecutionRuntime
 var sinon = require('sinon')
 var chai = require('chai')
 var assert = chai.assert

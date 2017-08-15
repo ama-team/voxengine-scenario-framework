@@ -1,12 +1,12 @@
 /* eslint-env mocha */
 
-var helper = require('../../helper/common')
-var schema = require('../../../lib/schema/definitions')
+var helper = require('../../../helper/common')
+var schema = require('../../../../lib/schema/definitions')
 var MachineTerminationResult = schema.MachineTerminationResult
 var TerminationCause = schema.TerminationCause
 var Scenario = schema.Scenario
 var TriggerType = schema.TriggerType
-var execution = require('../../../lib/execution/execution')
+var execution = require('../../../../lib/execution/execution')
 var Execution = execution.Execution
 var chai = require('chai')
 var assert = chai.assert

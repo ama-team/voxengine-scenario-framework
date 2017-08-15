@@ -1,9 +1,9 @@
 /* eslint-env mocha */
 /* global allure */
 
-var validator = require('../../../lib/schema/validator')
-var schema = require('../../../lib/schema/definitions')
-var helper = require('../../helper/common')
+var validator = require('../../../../lib/schema/validator')
+var schema = require('../../../../lib/schema/definitions')
+var helper = require('../../../helper/common')
 var chai = require('chai')
 var assert = chai.assert
 

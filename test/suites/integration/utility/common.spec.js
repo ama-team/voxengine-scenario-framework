@@ -1,6 +1,6 @@
 /* eslint-env mocha */
 
-var utilities = require('../../../lib/utility/common')
+var utilities = require('../../../../lib/utility/common')
 var chai = require('chai')
 
 describe('/utility', function () {

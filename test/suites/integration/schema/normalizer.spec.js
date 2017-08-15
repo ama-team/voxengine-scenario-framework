@@ -1,11 +1,11 @@
 /* eslint-env mocha */
 
-var Normalizer = require('../../../lib/schema/normalizer')
-var schema = require('../../../lib/schema/definitions')
+var Normalizer = require('../../../../lib/schema/normalizer')
+var schema = require('../../../../lib/schema/definitions')
 var Timeouts = schema.Timeouts
 var Directive = schema.Directive
 var TriggerType = schema.TriggerType
-var helper = require('../../helper/common')
+var helper = require('../../../helper/common')
 var chai = require('chai')
 var assert = chai.assert
 

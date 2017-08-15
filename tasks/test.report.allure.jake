@@ -8,7 +8,7 @@ namespace('test', function () {
       var command = [
         'allure',
         'generate',
-        'clean',
+        '--clean',
         '-o',
         Workspace.paths.allure.report,
         '--',

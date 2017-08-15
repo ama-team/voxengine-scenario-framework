@@ -2,7 +2,7 @@
 /* eslint-disable no-global-assign */
 /* global Logger, VoxEngine, AppEvents */
 
-var framework = require('../../lib/index')
+var framework = require('../../../lib/index')
 var chai = require('chai')
 var assert = chai.assert
 

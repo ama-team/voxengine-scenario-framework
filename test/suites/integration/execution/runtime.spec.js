@@ -3,7 +3,7 @@
 var sinon = require('sinon')
 var chai = require('chai')
 var assert = chai.assert
-var ExecutionRuntime = require('../../../lib/execution/runtime').ExecutionRuntime
+var ExecutionRuntime = require('../../../../lib/execution/runtime').ExecutionRuntime
 
 describe('/execution', function () {
   describe('/runtime.js', function () {

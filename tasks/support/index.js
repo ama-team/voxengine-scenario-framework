@@ -14,19 +14,20 @@ var Support = {
   chain: function (tasks, deferErrors) {
     tasks = Support.tasks(tasks)
     var errors = []
+    var first = tasks.shift()
     var last = tasks.reduce(function (carrier, task) {
-      if (carrier) {
-        carrier.addListener('complete', task.invoke)
-        carrier.addListener('error', function (e) {
-          if (!deferErrors) {
-            return fail(e)
-          }
-          errors.push(e)
-          task.invoke()
-        })
-      }
+      carrier.addListener('complete', function (value) {
+        task.invoke(value)
+      })
+      carrier.addListener('error', function (e) {
+        if (!deferErrors) {
+          return fail(e)
+        }
+        errors.push(e)
+        task.invoke()
+      })
       return task
-    }, null)
+    }, first)
     last.addListener('complete', function (value) {
       if (errors.length === 0) {
         return complete(value)
@@ -34,15 +35,14 @@ var Support = {
       fail(errors.pop())
     })
     last.addListener('error', fail)
-    tasks[0].invoke()
+    first.invoke()
   },
   exec: function (command) {
     if (command.join) {
       command = command.join(' ')
     }
     return new Promise(function (resolve, reject) {
-      var exec = jake.exec(command, {printStdout: true, printStderr: true, breakOnError: false})
-      exec.addListener('complete', resolve)
+      var exec = jake.exec(command, {printStdout: true, printStderr: true, breakOnError: false}, resolve)
       exec.addListener('error', reject)
     })
   },

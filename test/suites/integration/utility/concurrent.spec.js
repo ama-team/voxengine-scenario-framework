@@ -1,6 +1,6 @@
 /* eslint-env mocha */
 
-var concurrent = require('../../../lib/utility/concurrent')
+var concurrent = require('../../../../lib/utility/concurrent')
 var chai = require('chai')
 var assert = chai.assert
 

@@ -16,7 +16,7 @@ var paths = function (name) {
 }
 
 var Workspace = {
-  suites: ['unit', 'integration'],
+  suites: ['unit', 'integration', 'acceptance'],
   paths: {
     allure: paths('allure'),
     coverage: paths('coverage'),
