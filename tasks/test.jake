@@ -49,6 +49,10 @@ namespace('test', function () {
         var command = [
           Support.executable('istanbul'),
           'cover',
+          '--dir',
+          Path.resolve(Workspace.paths.coverage.metadata, suite),
+          '--report',
+          'none',
           Support.executable('jake'),
           'test:' + suite
         ];
