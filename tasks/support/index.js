@@ -9,18 +9,28 @@ var Support = {
       return task
     })
   },
-  chain: function (tasks, ignoreErrors) {
+  chain: function (tasks, deferErrors) {
     tasks = Support.tasks(tasks)
+    var errors = []
     var last = tasks.reduce(function (carrier, task) {
       if (carrier) {
         carrier.addListener('complete', task.invoke)
         carrier.addListener('error', function (e) {
-          ignoreErrors ? task.invoke() : fail(e)
+          if (!deferErrors) {
+            return fail(e)
+          }
+          errors.push(e)
+          task.invoke()
         })
       }
       return task
     }, null)
-    last.addListener('complete', complete)
+    last.addListener('complete', function (value) {
+      if (errors.length === 0) {
+        return complete(value)
+      }
+      fail(errors.pop())
+    })
     last.addListener('error', fail)
     tasks[0].invoke()
   },

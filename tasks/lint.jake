@@ -9,5 +9,6 @@ namespace('lint', function () {
 task('lint', {async: true}, function () {
   var task = jake.Task['lint:standard']
   task.addListener('complete', complete)
+  task.addListener('error', fail)
   task.invoke()
 })
