@@ -1,3 +1,5 @@
+/* global jake, complete, fail */
+
 var Path = require('path')
 
 var Support = {
