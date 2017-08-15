@@ -4,6 +4,7 @@ node_modules
 
 # Build-related files
 build
+package-lock.json
 
 # IDE files
 .idea

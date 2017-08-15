@@ -1,21 +1,124 @@
-machine:
-  post:
-    - sudo apt-add-repository ppa:yandex-qatools/allure-framework -y
-    - sudo apt-get update -yq
-    - sudo apt-get install allure-commandline -yq
-test:
-  post:
-    - 'npm run test:report'
-    # in case tag is pushed, coveralls will try to find current branch and will end on master
-    - '[ -z "$CIRCLE_BRANCH" ] || npm run test:report:publish'
-    - npm run doc
-    - mkdir -p $CIRCLE_TEST_REPORTS/junit
-    - cp build/data/xunit/junit.xml $CIRCLE_TEST_REPORTS/junit/junit.xml
-    - cp -r build/* $CIRCLE_ARTIFACTS/
-deployment:
-  npm-release:
-    tag: /^\d+\.\d+\.\d+$/
-    owner: ama-team
-    commands:
-      - echo '//registry.npmjs.org/:_authToken=${NPM_TOKEN}' > ~/.npmrc
-      - npm publish --access public
+parameters:
+  jabba:
+    version: &jabba_version 0.7.0
+    cache_key: &jabba_cache_key v1-jabba-0.7.0
+  java:
+    version: &java_version zulu@1.8.131
+  allure:
+    version: &allure_version 2.3.3
+    cache_key: &allure_cache_key v1-allure-2.3.3
+  npm:
+    cache_key: &npm_cache_key v1-npm-{{ checksum "package.json" }}
+  docker:
+    image: &docker_image circleci/node:4.8
+
+version: 2
+jobs:
+  build:
+    working_directory: /tmp/workspace
+    docker:
+      - image: *docker_image
+    environment:
+      JABBA_VERSION: *jabba_version
+      JAVA_VERSION: *java_version
+      ALLURE_VERSION: *allure_version
+    steps:
+      - checkout
+      - restore-cache:
+          key: *npm_cache_key
+      - restore-cache:
+          key: *jabba_cache_key
+      - restore-cache:
+          key: *allure_cache_key
+      - run:
+          name: 'Setup: Install Dependencies'
+          command: |
+            npm install
+            sudo ln -sf /tmp/workspace/node_modules/.bin/jake /usr/local/bin/jake
+          when: always
+      - type: save-cache
+        key: *npm_cache_key
+        paths:
+          - node_modules
+      - run:
+          name: 'Setup: Install Jabba & Java'
+          command: |
+            set -euxo pipefail
+            sudo ln -sf ~/.jabba/bin/jabba /usr/local/bin/jabba
+            [ ! -d ~/.jabba ] || exit 0
+            curl -sL https://github.com/shyiko/jabba/raw/master/install.sh | bash && . ~/.jabba/jabba.sh
+            jabba install $JAVA_VERSION
+          when: always
+      - type: save-cache
+        key: *jabba_cache_key
+        paths:
+          - ~/.jabba
+      - run:
+          name: 'Setup: Install Allure'
+          command: |
+            set -euxo pipefail
+            sudo ln -sf ~/allure/bin/allure /usr/local/bin/allure
+            [ ! $(which allure) ] || exit 0
+            curl -L "https://dl.bintray.com/qameta/generic/io/qameta/allure/allure/$ALLURE_VERSION/allure-$ALLURE_VERSION.zip" > /tmp/allure.zip
+            unzip /tmp/allure.zip -d /tmp/allure
+            mkdir -p ~/allure
+            sudo mv /tmp/allure/*/* ~/allure
+      - type: save-cache
+        key: *allure_cache_key
+        paths:
+          - ~/allure
+      - run:
+          name: 'Validation: Lint'
+          command: jake lint
+      - run:
+          name: 'Validation: Test'
+          command: jake test:coverage
+          when: always
+      - run:
+          name: 'Report: Generate'
+          command: |
+            export JAVA_HOME="$(jabba which $JAVA_VERSION)"
+            jake test:report
+          when: always
+      - run:
+          name: 'Report: Publish'
+          command: jake test:report:publish
+          when: always
+      - type: store-artifacts
+        path: tmp/metadata
+        destination: metadata
+        when: always
+      - type: store-artifacts
+        path: tmp/report
+        destination: report
+        when: always
+      - store_test_results:
+          path: tmp/metadata/junit
+  publish:
+    working_directory: /tmp/workspace
+    docker:
+      - image: *docker_image
+    steps:
+      - checkout
+      - run:
+          command: echo '//registry.npmjs.org/:_authToken=${NPM_TOKEN}' > ~/.npmrc
+      - run:
+          command: npm publish --access public
+
+workflows:
+  version: 2
+  default:
+    jobs:
+      - build:
+          filters:
+            tags:
+              only: /.*/
+      - publish:
+          requires:
+            - build
+          filters:
+            tags:
+              only: /\d+\.\d+\.\d+/
+            branches:
+              ignore: /.*/
+
