@@ -3,6 +3,7 @@ var Workspace = require('./workspace')
 var Path = require('path')
 var Mocha = require('mocha')
 var glob = require('glob')
+var FileSystem = require('fs-extra')
 
 namespace('test', function () {
   Workspace.suites.forEach(function (suite) {
@@ -59,6 +60,14 @@ namespace('test', function () {
         Support.supersede(command)
       })
     })
+  })
+
+  task('clean', {async: true}, function () {
+    var directories = ['metadata', 'report']
+    var promises = directories.map(function (directory) {
+      return FileSystem.emptyDir(Workspace.paths[directory])
+    })
+    Promise.all(promises).then(complete, setTimeout.bind(global, fail, 0))
   })
 })
 

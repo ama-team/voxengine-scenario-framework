@@ -1,7 +1,14 @@
 # Node files
 npm-debug.log
 node_modules
+
+# Artifacts
 build
+tmp
+
+# Repo control
+jake
+tasks
 
 # IDE files
 .idea
@@ -9,6 +16,7 @@ build
 # CI files
 circle.yml
 .istanbul.yml
+.scrutinizer.yml
 
 # Other
 .gitignore
