@@ -26,7 +26,8 @@ describe('/index.js', function () {
   var _events = typeof AppEvents === 'undefined' ? undefined : AppEvents
 
   beforeEach(function () {
-    VoxEngine = {
+    global.VoxEngine = {
+      terminate: function () {},
       addEventListener: function (_, listener) {
         listener()
       },
@@ -34,18 +35,18 @@ describe('/index.js', function () {
         return ''
       }
     }
-    Logger = {
+    global.Logger = {
       write: function () {}
     }
-    AppEvents = {
+    global.AppEvents = {
       Started: function () {}
     }
   })
 
   afterEach(function () {
-    VoxEngine = _engine
-    Logger = _logger
-    AppEvents = _events
+    global.VoxEngine = _engine
+    global.Logger = _logger
+    global.AppEvents = _events
   })
 
   describe('.run', function () {

@@ -18,6 +18,8 @@ var paths = function (name) {
 var Workspace = {
   suites: ['unit', 'integration', 'acceptance'],
   paths: {
+    report: reportDirectory,
+    metadata: metadataDirectory,
     allure: paths('allure'),
     coverage: paths('coverage'),
     junit: paths('junit'),
