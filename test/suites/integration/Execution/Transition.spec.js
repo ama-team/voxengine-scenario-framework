@@ -1,4 +1,5 @@
 /* eslint-env mocha */
+/* eslint-disable no-unused-expressions */
 
 var Sinon = require('sinon')
 var Chai = require('chai')
@@ -100,8 +101,7 @@ describe('Integration', function () {
           it('ends with Executed status if timeout handler has rescued situation', function () {
             var value = {x: 12}
             var target = stateFactory()
-            var promise = new Promise(function () {
-            });
+            var promise = new Promise(function () {})
             target.transition.handler = Sinon.stub().returns(promise)
             target.transition.timeout = 0
             target.onTransitionTimeout.handler = Sinon.stub().returns(value)

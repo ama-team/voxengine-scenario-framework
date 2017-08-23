@@ -1,4 +1,5 @@
 /* eslint-env mocha */
+/* eslint-disable no-unused-expressions */
 
 var Sinon = require('sinon')
 var Chai = require('chai')

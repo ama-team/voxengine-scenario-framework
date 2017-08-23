@@ -1,4 +1,5 @@
 /* eslint-env mocha */
+/* eslint-disable no-unused-expressions */
 
 var Context = require('../../../../lib/Execution/Context').Context
 
@@ -79,7 +80,7 @@ describe('Unit', function () {
             var value = {x: 12}
             var stub = Sinon.stub().returns(value)
 
-            var promise = new Context().promise(stub);
+            var promise = new Context().promise(stub)
             return expect(promise).to.eventually.equal(value)
           })
 
@@ -87,7 +88,7 @@ describe('Unit', function () {
             var error = new Error()
             var stub = Sinon.stub().throws(error)
 
-            var promise = new Context().promise(stub);
+            var promise = new Context().promise(stub)
             return expect(promise).to.eventually.be.rejectedWith(error)
           })
         })
