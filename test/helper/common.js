@@ -22,7 +22,7 @@ var rejectedFactory = function (e) {
 exports = module.exports = {
   setup: function () {},
   getLogger: function () {
-    var name = 'ama-team.voxengine-scenario-framework.test.runtime'
+    var name = 'ama-team.vsf.test.runtime'
     return Slf4j.create(name, LogLevel.All)
   },
   getUnhandledPromises: function () { return unhandledPromises },

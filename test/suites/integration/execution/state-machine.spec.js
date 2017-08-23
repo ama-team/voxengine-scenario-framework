@@ -37,7 +37,7 @@ describe('/execution', function () {
         logs.push(message)
       }
     }
-    var name = 'ama-team.voxengine-scenario-framework.test.spec.execution.state-machine'
+    var name = 'ama-team.vsf.test.spec.execution.state-machine'
     logger = new Slf4j(name, LogLevel.All, writer)
     factory = function (states) {
       states.forEach(function (state) { state.timeouts = state.timeouts || {} })

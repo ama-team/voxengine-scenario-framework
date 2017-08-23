@@ -6,7 +6,15 @@ var expect = Chai.expect
 
 Chai.use(require('chai-as-promised'))
 
+var SDK = require('@ama-team/voxengine-sdk')
+var Concurrent = SDK.Concurrent
+var CancellationToken = Concurrent.CancellationToken
+var TimeoutException = Concurrent.TimeoutException
 var ExecutionBranch = require('../../../../../lib/Execution/Transition/Branch').Branch
+
+function branchStopper () {
+  throw new Error('This branch should not have executed')
+}
 
 describe('Integration', function () {
   describe('/Execution', function () {
@@ -89,6 +97,111 @@ describe('Integration', function () {
                   expect(options.handler.handler.callCount).to.eq(1)
                   expect(options.timeoutHandler.handler.callCount).to.eq(1)
                 })
+            })
+
+            it('runs and rejects with main handler rejection reason', function () {
+              var reason = new Error()
+              var options = optionsFactory(function () {
+                return Promise.reject(reason)
+              })
+              var branch = factory(options)
+              return expect(branch.run()).to.eventually.be.rejectedWith(reason)
+            })
+
+            it('runs and rejects with timeout rejection reason if main handler times out', function () {
+              var reason = new Error()
+              var options = optionsFactory(null, function () {
+                return Promise.reject(reason)
+              })
+              options.handler.timeout = 0
+              var branch = factory(options)
+              return expect(branch.run()).to.eventually.be.rejectedWith(reason)
+            })
+
+            it('throws if called more than once', function () {
+              var options = optionsFactory(function () {
+                return Promise.resolve()
+              })
+              var branch = factory(options)
+              return branch
+                .run()
+                .then(function () {
+                  expect(branch.run).to.throw()
+                })
+            })
+
+            it('rejects with TimeoutException if both handlers time out', function () {
+              var handler = function () {
+                return new Promise(function () {})
+              }
+              var options = optionsFactory(handler, handler)
+              options.handler.timeout = 0
+              options.timeoutHandler.timeout = 0
+              var branch = factory(options)
+              return expect(branch.run()).to.eventually.be.rejectedWith(TimeoutException)
+            })
+
+            it('cancels tokens on timeouts', function () {
+              var handler = function () {
+                return new Promise(function () {})
+              }
+              var options = optionsFactory(handler, handler)
+              options.handler.timeout = 0
+              options.timeoutHandler.timeout = 0
+              var branch = factory(options)
+              return branch
+                .run()
+                .then(branchStopper, function () {
+                  var handlerNames = ['handler', 'timeoutHandler']
+                  var handlers = handlerNames.map(function (name) {
+                    return options[name].handler
+                  })
+                  handlers.forEach(function (handler) {
+                    expect(handler.callCount).to.eq(1)
+                    var token = handler.getCall(0).args[2]
+                    expect(token).to.be.instanceOf(CancellationToken)
+                    expect(token.isCancelled()).to.be.true
+                  })
+                })
+            })
+
+            var variants = [
+              {
+                name: 'handler',
+                handler: function () {
+                  return Promise.resolve()
+                },
+                timeout: null
+              },
+              {
+                name: 'timeoutHandler',
+                handler: function () {
+                  return new Promise(function () {})
+                },
+                timeout: 0
+              }
+            ]
+
+            variants.forEach(function (variant) {
+              it('creates derived cancellation token for ' + variant.name, function () {
+                var options = optionsFactory(variant.handler, function () {
+                  return Promise.resolve()
+                })
+                var token = new CancellationToken()
+                options.handler.timeout = variant.timeout
+                var branch = factory(options)
+                return branch
+                  .run(null, null, token)
+                  .then(function () {
+                    var handler = options[variant.name].handler
+                    expect(handler.callCount).to.eq(1)
+                    var passedToken = handler.getCall(0).args[2]
+                    expect(passedToken).to.be.instanceOf(CancellationToken)
+                    expect(passedToken.isCancelled()).to.be.false
+                    token.cancel()
+                    return passedToken
+                  })
+              })
             })
           })
         })

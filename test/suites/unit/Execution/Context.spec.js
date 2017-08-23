@@ -22,6 +22,20 @@ describe('Unit', function () {
             var lambda = function () { return new Context('test') }
             expect(lambda).not.to.throw()
           })
+
+          it('doesn\'t inherit logger properties', function () {
+            var options = {
+              logger: {
+                instance: {
+                  key: 'value',
+                  info: function () {}
+                }
+              }
+            }
+            var context = new Context(options)
+            expect(context).not.to.have.property('key')
+            expect(context).to.have.property('info').instanceOf(Function)
+          })
         })
 
         describe('#execute()', function () {
