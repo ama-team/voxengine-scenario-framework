@@ -6,6 +6,7 @@ namespace('test', function () {
     var tasks = Workspace.suites.map(function (suite) {
       return 'test:' + suite + ':coverage'
     })
+    tasks.unshift('test:clean')
     Support.chain(tasks)
   })
 })

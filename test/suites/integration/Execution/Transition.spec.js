@@ -131,6 +131,18 @@ describe('Integration', function () {
                 expect(result.status).to.eq(Status.ExecutionFailure)
               })
           })
+
+          it('passes hints to handler', function () {
+            var target = stateFactory()
+            var hints = {x: 12}
+            var transition = factory(target, hints)
+            return transition
+                .run()
+                .then(function () {
+                  var arg = target.transition.handler.getCall(0).args[1]
+                  expect(arg).to.eq(hints)
+                })
+          })
         })
 
         describe('#abort()', function () {
