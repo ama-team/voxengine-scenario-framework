@@ -93,6 +93,20 @@ describe('Unit', function () {
             })
           })
         })
+
+        var deprecatedProperties = {args: 'arguments', data: 'state'}
+        Object.keys(deprecatedProperties).forEach(function (property) {
+          describe('#' + property, function () {
+            var target = deprecatedProperties[property]
+            it('provides `' + property + '` as proxy for `' + target, function () {
+              var value = {x: 12}
+              var context = new Context({})
+              expect(context[property]).to.deep.eq({})
+              context[target] = value
+              expect(context[property]).to.equal(value)
+            })
+          })
+        })
       })
     })
   })

@@ -12,29 +12,40 @@ var Support = {
     })
   },
   chain: function (tasks, deferErrors) {
+    function invoke (task) {
+      console.log('Invoking task ' + task.fullName)
+      task.invoke.apply(task, arguments)
+      return task
+    }
     tasks = Support.tasks(tasks)
     var errors = []
     var first = tasks.shift()
     var last = tasks.reduce(function (carrier, task) {
       carrier.addListener('complete', function (value) {
-        task.invoke(value)
+        console.log('Task ' + carrier.fullName + ' completed')
+        invoke(task, value)
       })
       carrier.addListener('error', function (e) {
+        console.log('Task ' + carrier.fullName + ' failed')
         if (!deferErrors) {
           return fail(e)
         }
         errors.push(e)
-        task.invoke()
+        invoke(task)
       })
       return task
     }, first)
     last.addListener('complete', function (value) {
+      console.log('Task ' + last.fullName + ' completed')
       if (errors.length === 0) {
         return complete(value)
       }
       fail(errors.pop())
     })
-    last.addListener('error', fail)
+    last.addListener('error', function () {
+      console.log('Task ' + last.fullName + ' failed')
+      fail()
+    })
     first.invoke()
   },
   exec: function (command) {

@@ -1,4 +1,5 @@
 /* eslint-env mocha */
+/* eslint-disable no-unused-expressions */
 
 var Sinon = require('sinon')
 var Chai = require('chai')
@@ -88,6 +89,7 @@ describe('Integration', function () {
             return new Promise(function () {})
           })
           errorHandler = Sinon.spy(function () {})
+          scenario = scenarioFactory()
         })
 
         var factory = function (scenario, errorHandler) {
@@ -267,6 +269,20 @@ describe('Integration', function () {
                 expect(result.value).to.eq(error)
               })
           })
+
+          it('has default error handler', function () {
+            var error = new Error()
+            scenario.terminal.transition.handler = function () {
+              throw error
+            }
+            var machine = new StateMachine(executor, scenario)
+            return machine
+              .run()
+              .then(function (result) {
+                expect(result.status).to.eq(Status.Failed)
+                expect(result.value).to.eq(error)
+              })
+          })
         })
 
         describe('#transitionTo', function () {
@@ -322,6 +338,65 @@ describe('Integration', function () {
               })
               .then(function (result) {
                 expect(result.status).to.eq(Status.Finished)
+              })
+          })
+
+          it('tolerates string trigger', function () {
+            entrypointState.transition.handler = Sinon.spy(function () {
+              // not `trigger.id = ?` as expected
+              return {trigger: 'terminal'}
+            })
+            var machine = autoFactory()
+            return machine
+              .run()
+              .then(function (result) {
+                expect(result.status).to.eq(Status.Finished)
+                expect(scenario.entrypoint.transition.handler.callCount).to.eq(1)
+                expect(scenario.terminal.transition.handler.callCount).to.eq(1)
+              })
+          })
+        })
+
+        describe('#getTransition()', function () {
+          it('returns running transition', function () {
+            scenario.entrypoint.transition.handler = function () {
+              return new Promise(function () {})
+            }
+            var machine = autoFactory()
+            var hints = {x: 12}
+            expect(machine.getTransition()).to.be.null
+            machine.run(hints)
+            var transition = machine.getTransition()
+            expect(transition.getOrigin()).to.eq(null)
+            expect(transition.getTarget()).to.eq(entrypointState)
+            expect(transition.getHints()).to.eq(hints)
+          })
+
+          it('returns null if transition has finished', function () {
+            var machine = autoFactory()
+            return machine
+              .run()
+              .then(function () {
+                expect(machine.getTransition()).to.be.null
+              })
+          })
+        })
+
+        describe('#getHistory()', function () {
+          it('stores up to 100 last history entries', function () {
+            this.timeout(2000)
+            var counter = 0
+            entrypointState.transition.handler = function () {
+              if (counter++ < 50) {
+                return {trigger: {id: 'entrypoint'}}
+              }
+              return {trigger: {id: 'terminal'}}
+            }
+            var machine = autoFactory()
+            return machine
+              .run()
+              .then(function () {
+                expect(machine.getHistory()).to.have.lengthOf(100)
               })
           })
         })

@@ -246,6 +246,44 @@ describe('Integration', function () {
               })
           })
         })
+
+        describe('#toDetails()', function () {
+          it('provides simplified details', function () {
+            var target = stateFactory()
+            var hints = {x: 12}
+            var options = {
+              executor: executor,
+              target: target,
+              origin: null,
+              hints: hints
+            }
+            var transition = new Transition(options)
+            var expectation = {
+              origin: null,
+              target: target.id,
+              hints: hints
+            }
+            expect(transition.toDetails()).to.deep.eq(expectation)
+          })
+        })
+
+        describe('#launchedAt', function () {
+          it('returns null for non-launched transition', function () {
+            var transition = factory()
+            expect(transition.getLaunchedAt()).to.be.null
+          })
+
+          it('returns date for launched transition', function () {
+            var transition = factory()
+            var lowerBound = new Date()
+            return transition
+              .run(null, {})
+              .then(function () {
+                expect(transition.getLaunchedAt()).to.be.at.least(lowerBound)
+                expect(transition.getLaunchedAt()).to.be.at.most(new Date())
+              })
+          })
+        })
       })
     })
   })

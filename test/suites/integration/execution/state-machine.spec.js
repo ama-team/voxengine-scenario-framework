@@ -25,7 +25,7 @@ describe('/execution', function () {
   var logger
   /**
    * @function
-   * @param {State[]} states
+   * @param {TState[]} states
    * @return {StateMachine}
    */
   var factory

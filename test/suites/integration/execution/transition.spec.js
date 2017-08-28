@@ -20,7 +20,7 @@ chai.use(require('chai-as-promised'))
 describe('/execution', function () {
   /**
    * @function
-   * @param {State[]} states
+   * @param {TState[]} states
    * @return {StateMachine}
    */
   var factory
