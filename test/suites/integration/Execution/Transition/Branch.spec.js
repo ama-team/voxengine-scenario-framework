@@ -42,14 +42,14 @@ describe('Integration', function () {
             return {
               name: name || 'integration test',
               handler: {
-                name: 'handler',
+                id: 'handler',
                 handler: Sinon.spy(handler),
-                timeout: null
-              },
-              timeoutHandler: {
-                name: 'timeoutHandler',
-                handler: Sinon.spy(timeoutHandler),
-                timeout: null
+                timeout: null,
+                timeoutHandler: {
+                  id: 'timeoutHandler',
+                  handler: Sinon.spy(timeoutHandler),
+                  timeout: null
+                }
               },
               executor: executor,
               logger: {}
@@ -80,7 +80,7 @@ describe('Integration', function () {
                 .run()
                 .then(function () {
                   expect(options.handler.handler.callCount).to.eq(1)
-                  expect(options.timeoutHandler.handler.callCount).to.eq(0)
+                  expect(options.handler.timeoutHandler.handler.callCount).to.eq(0)
                 })
             })
 
@@ -96,7 +96,7 @@ describe('Integration', function () {
                 .then(function (result) {
                   expect(result).to.eq(value)
                   expect(options.handler.handler.callCount).to.eq(1)
-                  expect(options.timeoutHandler.handler.callCount).to.eq(1)
+                  expect(options.handler.timeoutHandler.handler.callCount).to.eq(1)
                 })
             })
 
@@ -137,7 +137,7 @@ describe('Integration', function () {
               }
               var options = optionsFactory(handler, handler)
               options.handler.timeout = 0
-              options.timeoutHandler.timeout = 0
+              options.handler.timeoutHandler.timeout = 0
               var branch = factory(options)
               return expect(branch.run()).to.eventually.be.rejectedWith(TimeoutException)
             })
@@ -147,15 +147,16 @@ describe('Integration', function () {
                 return new Promise(function () {})
               }
               var options = optionsFactory(handler, handler)
-              options.handler.timeout = 0
-              options.timeoutHandler.timeout = 0
+              var sources = [options.handler, options.handler.timeoutHandler]
+              sources.forEach(function (source) {
+                source.timeout = 0
+              })
               var branch = factory(options)
               return branch
                 .run()
                 .then(branchStopper, function () {
-                  var handlerNames = ['handler', 'timeoutHandler']
-                  var handlers = handlerNames.map(function (name) {
-                    return options[name].handler
+                  var handlers = sources.map(function (source) {
+                    return source.handler
                   })
                   handlers.forEach(function (handler) {
                     expect(handler.callCount).to.eq(1)
@@ -194,7 +195,9 @@ describe('Integration', function () {
                 return branch
                   .run(null, null, token)
                   .then(function () {
-                    var handler = options[variant.name].handler
+                    var source = options.handler
+                    source = variant.name === 'handler' ? source : source.timeoutHandler
+                    var handler = source.handler
                     expect(handler.callCount).to.eq(1)
                     var passedToken = handler.getCall(0).args[2]
                     expect(passedToken).to.be.instanceOf(CancellationToken)

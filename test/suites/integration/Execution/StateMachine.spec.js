@@ -12,7 +12,7 @@ var Future = SDK.Concurrent.Future
 
 var SimpleExecutor = require('../../../support/SimpleExecutor').SimpleExecutor
 var StateMachine = require('../../../../lib/Execution').StateMachine
-var Status = StateMachine.Status
+var Status = require('../../../../lib/Schema').OperationStatus
 var Errors = require('../../../../lib/Error')
 
 describe('Integration', function () {
@@ -332,7 +332,7 @@ describe('Integration', function () {
             return machine
               .transitionTo('entrypoint')
               .then(function () {
-                expect(machine.getStatus()).to.eq(Status.Idle)
+                expect(machine.getStatus()).to.eq(StateMachine.Status.Idle)
                 machine.transitionTo('terminal')
                 return machine.getTermination()
               })

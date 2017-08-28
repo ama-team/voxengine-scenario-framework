@@ -13,7 +13,7 @@ describe('/schema', function () {
   describe('/normalizer.js', function () {
     helper.setup()
 
-    describe('.Handler', function () {
+    describe('.Interface', function () {
       var N = Normalizer.Handler
 
       describe('.wrapHandler', function () {

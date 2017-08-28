@@ -29,10 +29,16 @@ describe('Integration', function () {
         }
 
         var handlerFactory = function (handler, name, timeout) {
+          name = name || 'handler'
           return {
-            name: name || 'handler',
+            id: name || 'handler',
             handler: Sinon.spy(handler),
-            timeout: typeof timeout === 'number' ? timeout : null
+            timeout: typeof timeout === 'number' ? timeout : null,
+            timeoutHandler: {
+              id: 'timeout' + name[0].toUpperCase() + name.substr(1),
+              handler: Sinon.spy(handler),
+              timeout: typeof timeout === 'number' ? timeout : null
+            }
           }
         }
 
@@ -46,7 +52,7 @@ describe('Integration', function () {
             entrypoint: false,
             terminal: false
           }
-          var handlers = ['transition', 'onTransitionTimeout', 'abort', 'onAbortTimeout']
+          var handlers = ['transition', 'abort']
           handlers.forEach(function (name) {
             structure[name] = handlerFactory(handler, name, timeout)
           })
@@ -104,13 +110,13 @@ describe('Integration', function () {
             var promise = new Promise(function () {})
             target.transition.handler = Sinon.stub().returns(promise)
             target.transition.timeout = 0
-            target.onTransitionTimeout.handler = Sinon.stub().returns(value)
+            target.transition.timeoutHandler.handler = Sinon.stub().returns(value)
             var transition = factory(target)
             return transition
               .run()
               .then(function (result) {
                 expect(target.transition.handler.callCount).to.eq(1)
-                expect(target.onTransitionTimeout.handler.callCount).to.eq(1)
+                expect(target.transition.timeoutHandler.handler.callCount).to.eq(1)
                 var token = target.transition.handler.getCall(0).args[2]
                 expect(token.isCancelled()).to.be.true
                 expect(result.value).to.eq(value)
