@@ -357,6 +357,35 @@ describe('Integration', function () {
           })
         })
 
+        describe('#terminate', function () {
+          it('aborts running transition', function () {
+            scenario.entrypoint.transition.handler = function () {
+              return new Promise(function () {})
+            }
+            scenario.entrypoint.abort.handler = Sinon.spy(function () {})
+            var machine = autoFactory()
+            machine.run()
+            return machine
+              .terminate()
+              .then(function (result) {
+                expect(result.status).to.eq(Status.Aborted)
+                expect(scenario.entrypoint.abort.handler.callCount).to.eq(1)
+              })
+          })
+
+          it('throws if called on inactive machine', function () {
+            var machine = autoFactory()
+            return machine
+              .run()
+              .then(function () {
+                var lambda = function () {
+                  machine.terminate()
+                }
+                expect(lambda).to.throw(Errors.InternalError)
+              })
+          })
+        })
+
         describe('#getTransition()', function () {
           it('returns running transition', function () {
             scenario.entrypoint.transition.handler = function () {
