@@ -20,7 +20,7 @@ describe('Unit', function () {
       describe('.Termination', function () {
         describe('#run()', function () {
           var handler
-          var timeoutHandler
+          var onTimeout
           var handlerStructure
           var executor
           var timeout
@@ -29,7 +29,7 @@ describe('Unit', function () {
           beforeEach(function () {
             executor = new Executor(null)
             handler = function () {}
-            timeoutHandler = function () {}
+            onTimeout = function () {}
             timeout = null
             loggerOptions = {}
           })
@@ -39,9 +39,9 @@ describe('Unit', function () {
               id: 'termination',
               handler: Sinon.spy(handler),
               timeout: timeout,
-              timeoutHandler: {
+              onTimeout: {
                 id: 'terminationTimeout',
-                handler: Sinon.spy(timeoutHandler),
+                handler: Sinon.spy(onTimeout),
                 timeout: timeout
               }
             }
@@ -76,7 +76,7 @@ describe('Unit', function () {
               .run(argument)
               .then(function (result) {
                 expect(result.status).to.eq(OperationStatus.Finished)
-                var handler = handlerStructure.timeoutHandler.handler
+                var handler = handlerStructure.onTimeout.handler
                 expect(handler.callCount).to.eq(1)
                 expect(handler.getCall(0).args[0]).to.eq(argument)
                 expect(handler.getCall(0).args[1]).to.be.instanceOf(TimeoutException)
@@ -85,7 +85,7 @@ describe('Unit', function () {
 
           it('timeouts timeout handler as well', function () {
             timeout = 0
-            handler = timeoutHandler = function () {
+            handler = onTimeout = function () {
               return new Promise(function () {})
             }
             var termination = autoFactory()
@@ -96,7 +96,7 @@ describe('Unit', function () {
                 expect(result.value).to.be.instanceOf(TimeoutException)
                 var handlers = [
                   handlerStructure.handler,
-                  handlerStructure.timeoutHandler.handler
+                  handlerStructure.onTimeout.handler
                 ]
                 handlers.forEach(function (handler) {
                   expect(handler.callCount).to.eq(1)
@@ -121,7 +121,7 @@ describe('Unit', function () {
             handler = function () {
               return new Promise(function () {})
             }
-            timeoutHandler = function () {
+            onTimeout = function () {
               throw error
             }
             timeout = 0

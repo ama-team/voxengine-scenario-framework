@@ -34,7 +34,7 @@ describe('Integration', function () {
             id: name || 'handler',
             handler: Sinon.spy(handler),
             timeout: typeof timeout === 'number' ? timeout : null,
-            timeoutHandler: {
+            onTimeout: {
               id: 'timeout' + name[0].toUpperCase() + name.substr(1),
               handler: Sinon.spy(handler),
               timeout: typeof timeout === 'number' ? timeout : null
@@ -110,13 +110,13 @@ describe('Integration', function () {
             var promise = new Promise(function () {})
             target.transition.handler = Sinon.stub().returns(promise)
             target.transition.timeout = 0
-            target.transition.timeoutHandler.handler = Sinon.stub().returns(value)
+            target.transition.onTimeout.handler = Sinon.stub().returns(value)
             var transition = factory(target)
             return transition
               .run()
               .then(function (result) {
                 expect(target.transition.handler.callCount).to.eq(1)
-                expect(target.transition.timeoutHandler.handler.callCount).to.eq(1)
+                expect(target.transition.onTimeout.handler.callCount).to.eq(1)
                 var token = target.transition.handler.getCall(0).args[2]
                 expect(token.isCancelled()).to.be.true
                 expect(result.value).to.eq(value)

@@ -32,11 +32,11 @@ describe('Integration', function () {
             }
           }
 
-          var optionsFactory = function (handler, timeoutHandler, name) {
+          var optionsFactory = function (handler, onTimeout, name) {
             handler = handler || function () {
               return new Promise(function () {})
             }
-            timeoutHandler = timeoutHandler || function (a, b, c, error) {
+            onTimeout = onTimeout || function (a, b, c, error) {
               return Promise.reject(error)
             }
             return {
@@ -45,9 +45,9 @@ describe('Integration', function () {
                 id: 'handler',
                 handler: Sinon.spy(handler),
                 timeout: null,
-                timeoutHandler: {
+                onTimeout: {
                   id: 'timeoutHandler',
-                  handler: Sinon.spy(timeoutHandler),
+                  handler: Sinon.spy(onTimeout),
                   timeout: null
                 }
               },
@@ -80,7 +80,7 @@ describe('Integration', function () {
                 .run()
                 .then(function () {
                   expect(options.handler.handler.callCount).to.eq(1)
-                  expect(options.handler.timeoutHandler.handler.callCount).to.eq(0)
+                  expect(options.handler.onTimeout.handler.callCount).to.eq(0)
                 })
             })
 
@@ -96,7 +96,7 @@ describe('Integration', function () {
                 .then(function (result) {
                   expect(result).to.eq(value)
                   expect(options.handler.handler.callCount).to.eq(1)
-                  expect(options.handler.timeoutHandler.handler.callCount).to.eq(1)
+                  expect(options.handler.onTimeout.handler.callCount).to.eq(1)
                 })
             })
 
@@ -137,7 +137,7 @@ describe('Integration', function () {
               }
               var options = optionsFactory(handler, handler)
               options.handler.timeout = 0
-              options.handler.timeoutHandler.timeout = 0
+              options.handler.onTimeout.timeout = 0
               var branch = factory(options)
               return expect(branch.run()).to.eventually.be.rejectedWith(TimeoutException)
             })
@@ -147,7 +147,7 @@ describe('Integration', function () {
                 return new Promise(function () {})
               }
               var options = optionsFactory(handler, handler)
-              var sources = [options.handler, options.handler.timeoutHandler]
+              var sources = [options.handler, options.handler.onTimeout]
               sources.forEach(function (source) {
                 source.timeout = 0
               })
@@ -196,7 +196,7 @@ describe('Integration', function () {
                   .run(null, null, token)
                   .then(function () {
                     var source = options.handler
-                    source = variant.name === 'handler' ? source : source.timeoutHandler
+                    source = variant.name === 'handler' ? source : source.onTimeout
                     var handler = source.handler
                     expect(handler.callCount).to.eq(1)
                     var passedToken = handler.getCall(0).args[2]

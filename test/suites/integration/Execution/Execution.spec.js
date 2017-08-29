@@ -25,28 +25,28 @@ describe('Integration', function () {
         var terminalHandler
         var errorHandler
         var terminationHandler
-        var terminationTimeoutHandler
+        var onTerminationTimeout
 
         beforeEach(function () {
           entrypointHandler = function (_, hints) {
             return {trigger: {id: 'terminal', hints: hints}}
           }
           terminationHandler = function () {}
-          terminationTimeoutHandler = function (_, error) { throw error }
+          onTerminationTimeout = function (_, error) { throw error }
         })
 
-        var handlerFactory = function (id, handler, timeout, timeoutHandler) {
+        var handlerFactory = function (id, handler, timeout, onTimeout) {
           handler = handler || function () {}
-          timeoutHandler = timeoutHandler || function (a, b, c, error) {
+          onTimeout = onTimeout || function (a, b, c, error) {
             throw error
           }
           return {
             id: id,
             handler: Sinon.spy(handler),
             timeout: timeout,
-            timeoutHandler: {
+            onTimeout: {
               id: 'on' + id[0].toUpperCase() + id.substr(1) + 'Timeout',
-              handler: Sinon.spy(timeoutHandler),
+              handler: Sinon.spy(onTimeout),
               timeout: timeout
             }
           }
@@ -78,11 +78,11 @@ describe('Integration', function () {
               entrypoint: entrypoint
             },
             errorHandler: errorHandler,
-            terminationHandler: handlerFactory(
+            onTermination: handlerFactory(
               'termination',
               terminationHandler,
               null,
-              terminationTimeoutHandler
+              onTerminationTimeout
             )
           }
           return scenario
@@ -106,9 +106,9 @@ describe('Integration', function () {
                 ]
                 handlers.forEach(function (handler) {
                   expect(handler.callCount).to.eq(1)
-                  expect(handler.getCall(0).args[1]).to.eq(hints)
+                  expect(handler.getCall(0).args[1]).to.deep.eq(hints)
                 })
-                expect(scenario.terminationHandler.handler.callCount).to.eq(1)
+                expect(scenario.onTermination.handler.callCount).to.eq(1)
               })
           })
 
@@ -124,7 +124,7 @@ describe('Integration', function () {
                 ]
                 handlers.forEach(function (handler) {
                   expect(handler.callCount).to.eq(1)
-                  expect(handler.getCall(0).args[1]).to.eq(args)
+                  expect(handler.getCall(0).args[1]).to.deep.eq(args)
                 })
               })
           })

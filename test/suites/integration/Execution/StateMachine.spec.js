@@ -174,7 +174,7 @@ describe('Integration', function () {
                 var handler = terminalState.transition.handler
                 expect(handler.callCount).to.eq(1)
                 expect(handler.getCall(0).args[0]).to.eq(entrypointState.id)
-                expect(handler.getCall(0).args[1]).to.eq(hints)
+                expect(handler.getCall(0).args[1]).to.deep.eq(hints)
               })
           })
 
@@ -408,6 +408,29 @@ describe('Integration', function () {
               .then(function () {
                 expect(machine.getTransition()).to.be.null
               })
+          })
+        })
+
+        describe('#getTransitions()', function () {
+          it('returns running and aborting transitions', function () {
+            var barrier = new Future()
+            var handler = function () {
+              return barrier
+            }
+            entrypointState.transition.handler = handler
+            entrypointState.abort.handler = handler
+            terminalState.transition.handler = handler
+            var machine = autoFactory()
+            machine.run()
+            machine.transitionTo('terminal')
+            var transitions = machine.getTransitions()
+            expect(transitions).to.have.lengthOf(2)
+
+            expect(transitions[0].getOrigin()).to.be.null
+            expect(transitions[0].getTarget()).to.eq(entrypointState)
+
+            expect(transitions[1].getOrigin()).to.be.null
+            expect(transitions[1].getTarget()).to.eq(terminalState)
           })
         })
 
