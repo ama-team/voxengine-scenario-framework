@@ -1,4 +1,5 @@
 /* eslint-env mocha */
+/* eslint-disable no-unused-expressions */
 
 var Chai = require('chai')
 var expect = Chai.expect
@@ -58,7 +59,7 @@ describe('Unit', function () {
             var timeout = 10
             timeouts[id] = timeout
             timeouts[onTimeoutId] = timeout
-            var handler ={
+            var handler = {
               id: id,
               handler: function () {}
             }

@@ -1,4 +1,5 @@
 /* eslint-env mocha */
+/* eslint-disable no-unused-expressions */
 
 var Chai = require('chai')
 var expect = Chai.expect
@@ -65,13 +66,13 @@ describe('Unit', function () {
 
           it('truncates non-string `.transitionedTo`', function () {
             var input = {transitionedTo: 123}
-            var value = Normalizer.transition(input);
+            var value = Normalizer.transition(input)
             expect(value).to.have.property('transitionedTo', null)
           })
 
           it('keeps string `.transitionedTo`', function () {
             var input = {transitionedTo: 'entrypoint'}
-            var value = Normalizer.transition(input);
+            var value = Normalizer.transition(input)
             expect(value).to.have.property('transitionedTo').eq(input.transitionedTo)
           })
         })
