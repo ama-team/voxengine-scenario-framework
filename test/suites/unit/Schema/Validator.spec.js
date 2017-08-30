@@ -6,6 +6,7 @@ var expect = Chai.expect
 
 var Validator = require('../../../../lib/Schema/Validator').Validator
 var Severity = Validator.Severity
+var TriggerType = require('../../../../lib/Schema/TriggerType').TriggerType
 
 var worstViolation = function (violations) {
   return violations.reduce(function (carrier, violation) {
@@ -71,7 +72,9 @@ describe('Unit', function () {
                 }
               },
               onError: function () {},
-              onTermination: function () {}
+              onTermination: function () {},
+              trigger: TriggerType.Http,
+              argumentDeserializer: function () {}
             }
           })
 
@@ -98,6 +101,42 @@ describe('Unit', function () {
             var violations = Validator.scenario(scenario)
             violations = violations.violations['$.onError']
             expect(violations).not.to.be.empty
+          })
+
+          it('reports missing $.trigger', function () {
+            delete scenario.trigger
+            var violations = Validator.scenario(scenario)
+            violations = violations.violations['$.trigger']
+            expect(violations).not.to.be.empty
+            var violation = worstViolation(violations)
+            expect(violation).to.have.property('severity').eq(Severity.Fatal)
+          })
+
+          it('reports invalid $.trigger', function () {
+            scenario.trigger = 'gRPC'
+            var violations = Validator.scenario(scenario)
+            violations = violations.violations['$.trigger']
+            expect(violations).not.to.be.empty
+            var violation = worstViolation(violations)
+            expect(violation).to.have.property('severity').eq(Severity.Fatal)
+          })
+
+          it('reports missing $.argumentDeserializer', function () {
+            delete scenario.argumentDeserializer
+            var violations = Validator.scenario(scenario)
+            violations = violations.violations['$.argumentDeserializer']
+            expect(violations).not.to.be.empty
+            var violation = worstViolation(violations)
+            expect(violation).to.have.property('severity').eq(Severity.Minor)
+          })
+
+          it('reports invalid $.argumentDeserializer', function () {
+            scenario.argumentDeserializer = 200
+            var violations = Validator.scenario(scenario)
+            violations = violations.violations['$.argumentDeserializer']
+            expect(violations).not.to.be.empty
+            var violation = worstViolation(violations)
+            expect(violation).to.have.property('severity').eq(Severity.Fatal)
           })
 
           it('reports illegal states input', function () {

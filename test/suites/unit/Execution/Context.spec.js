@@ -62,9 +62,7 @@ describe('Unit', function () {
             var result = {x: 12}
             var handler = Sinon.stub().returns(result)
             var execution = {
-              machine: {
-                transitionTo: handler
-              }
+              transitionTo: handler
             }
             var id = 'id'
             var hints = {hints: null}

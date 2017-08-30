@@ -97,7 +97,7 @@ describe('Integration', function () {
             var execution = autoFactory()
             var hints = {x: 12}
             return execution
-              .run(hints)
+              .run(null, hints)
               .then(function (result) {
                 expect(result.status).to.eq(OperationStatus.Finished)
                 var handlers = [
@@ -220,12 +220,12 @@ describe('Integration', function () {
             }
             var hints = {x: 12}
             var execution = autoFactory()
-            execution.run(hints)
+            execution.run(null, hints)
             var transition = execution.getTransition()
             expect(transition).not.to.be.null
             expect(transition.origin).to.be.null
             expect(transition.target).to.eq(entrypoint.id)
-            expect(transition.hints).to.eq(hints)
+            expect(transition.hints).to.deep.eq(hints)
           })
         })
       })
