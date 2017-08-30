@@ -4,7 +4,7 @@
 var Chai = require('chai')
 var expect = Chai.expect
 
-var Objects = require('../../../../lib/Utility/Objects').Objects
+var Objects = require('../../../../lib/Utility').Objects
 
 describe('Unit', function () {
   describe('/Utility', function () {
