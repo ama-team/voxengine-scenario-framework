@@ -1,5 +1,4 @@
 /* eslint-env mocha */
-/* global AppEvents */
 
 var Chai = require('chai')
 var expect = Chai.expect

@@ -1,5 +1,4 @@
 /* eslint-env mocha */
-/* global VoxEngine, AppEvents */
 
 var Sinon = require('sinon')
 var Chai = require('chai')
@@ -33,7 +32,7 @@ describe('Unit', function () {
         describe('.extractTrigger', function () {
           it('returns expected value', function () {
             var args = '{"id": 124}'
-            VoxEngine.customData.returns(args)
+            global.VoxEngine.customData.returns(args)
             var event = {}
             var expectation = {
               type: TriggerType.Http,
