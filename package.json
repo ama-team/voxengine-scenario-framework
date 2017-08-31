@@ -47,6 +47,7 @@
   },
   "devDependencies": {
     "@ama-team/voxengine-definitions": "^0.1.0",
+    "@ama-team/voxengine-stubs": "^0.1.0",
     "bluebird": "^3.5.0",
     "chai": "^3.5.0",
     "chai-as-promised": "^6.0.0",

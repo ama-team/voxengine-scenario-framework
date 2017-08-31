@@ -1,6 +1,6 @@
 /* eslint-env mocha */
 
-require('./rejection-handling')
-require('./output-interception')
-require('./voxengine-logger')
-require('./voxengine-api')
+require('./Hooks/VoxEngineStubs')
+require('./Hooks/RejectionHandling')
+require('./Hooks/OutputInterception')
+require('./Hooks/SDKLogger')
