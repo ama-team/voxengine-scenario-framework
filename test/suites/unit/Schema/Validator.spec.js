@@ -74,7 +74,7 @@ describe('Unit', function () {
               onError: function () {},
               onTermination: function () {},
               trigger: TriggerType.Http,
-              argumentDeserializer: function () {}
+              deserializer: function () {}
             }
           })
 
@@ -121,19 +121,19 @@ describe('Unit', function () {
             expect(violation).to.have.property('severity').eq(Severity.Fatal)
           })
 
-          it('reports missing $.argumentDeserializer', function () {
-            delete scenario.argumentDeserializer
+          it('reports missing $.deserializer', function () {
+            delete scenario.deserializer
             var violations = Validator.scenario(scenario)
-            violations = violations.violations['$.argumentDeserializer']
+            violations = violations.violations['$.deserializer']
             expect(violations).not.to.be.empty
             var violation = worstViolation(violations)
             expect(violation).to.have.property('severity').eq(Severity.Minor)
           })
 
-          it('reports invalid $.argumentDeserializer', function () {
-            scenario.argumentDeserializer = 200
+          it('reports invalid $.deserializer', function () {
+            scenario.deserializer = 200
             var violations = Validator.scenario(scenario)
-            violations = violations.violations['$.argumentDeserializer']
+            violations = violations.violations['$.deserializer']
             expect(violations).not.to.be.empty
             var violation = worstViolation(violations)
             expect(violation).to.have.property('severity').eq(Severity.Fatal)

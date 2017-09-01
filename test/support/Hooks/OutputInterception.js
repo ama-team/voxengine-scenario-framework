@@ -5,7 +5,7 @@ function StreamInterceptor (stream) {
   var logs = []
   var originalWriteMethod = stream.write
 
-  this.start = function () {
+  this.initialize = function () {
     stream.write = function (a, b, c) {
       originalWriteMethod.call(stream, a, b, c)
       logs.push(a)
@@ -34,7 +34,7 @@ var interceptors = {
 
 beforeEach(function () {
   Object.keys(interceptors).forEach(function (stream) {
-    interceptors[stream] = new StreamInterceptor(process[stream]).start()
+    interceptors[stream] = new StreamInterceptor(process[stream]).initialize()
   })
 })
 

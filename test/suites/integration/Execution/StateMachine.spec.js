@@ -10,17 +10,17 @@ Chai.use(require('chai-as-promised'))
 var SDK = require('@ama-team/voxengine-sdk')
 var Future = SDK.Concurrent.Future
 
-var SimpleExecutor = require('../../../support/SimpleExecutor').SimpleExecutor
 var StateMachine = require('../../../../lib/Execution').StateMachine
 var Status = require('../../../../lib/Schema').OperationStatus
 var Errors = require('../../../../lib/Error')
+var Executor = require('../../../../lib/Execution/Executor').Executor
 
 describe('Integration', function () {
   describe('/Execution', function () {
     describe('/StateMachine.js', function () {
       describe('.StateMachine', function () {
-        var context = {}
-        var executor = new SimpleExecutor(context)
+        var context
+        var executor
 
         var entrypointState
         var terminalState
@@ -68,10 +68,15 @@ describe('Integration', function () {
           states.forEach(function (state) {
             scenario[state.id] = state
           })
-          return scenario
+          return {
+            states: scenario,
+            onError: errorHandler
+          }
         }
 
         beforeEach(function () {
+          context = {}
+          executor = new Executor(context)
           terminalState = stateFactory('terminal', function () {}, true)
           entrypointState = stateFactory('entrypoint', function () {
             return {trigger: {id: 'terminal'}}
@@ -92,18 +97,22 @@ describe('Integration', function () {
           scenario = scenarioFactory()
         })
 
-        var factory = function (scenario, errorHandler) {
-          return new StateMachine(executor, scenario, errorHandler)
+        var factory = function (scenario) {
+          return new StateMachine(executor, scenario)
         }
 
         var autoFactory = function () {
-          return factory(scenarioFactory(), errorHandler)
+          return factory(scenarioFactory())
         }
 
         describe('< new', function () {
           it('fails if entrypoint state is not provided', function () {
             var lambda = function () {
-              return new StateMachine(executor, {infinite: infiniteState})
+              var scenario = {
+                states: {infinite: infiniteState},
+                onError: function () {}
+              }
+              return new StateMachine(executor, scenario)
             }
             expect(lambda).to.throw(Errors.ScenarioError)
           })
@@ -269,20 +278,6 @@ describe('Integration', function () {
                 expect(result.value).to.eq(error)
               })
           })
-
-          it('has default error handler', function () {
-            var error = new Error()
-            scenario.terminal.transition.handler = function () {
-              throw error
-            }
-            var machine = new StateMachine(executor, scenario)
-            return machine
-              .run()
-              .then(function (result) {
-                expect(result.status).to.eq(Status.Failed)
-                expect(result.value).to.eq(error)
-              })
-          })
         })
 
         describe('#transitionTo', function () {
@@ -332,7 +327,7 @@ describe('Integration', function () {
             return machine
               .transitionTo('entrypoint')
               .then(function () {
-                expect(machine.getStatus()).to.eq(StateMachine.Status.Idle)
+                expect(machine.getStatus()).to.eq(StateMachine.Stage.Idle)
                 machine.transitionTo('terminal')
                 return machine.getTermination()
               })
@@ -351,25 +346,25 @@ describe('Integration', function () {
               .run()
               .then(function (result) {
                 expect(result.status).to.eq(Status.Finished)
-                expect(scenario.entrypoint.transition.handler.callCount).to.eq(1)
-                expect(scenario.terminal.transition.handler.callCount).to.eq(1)
+                expect(entrypointState.transition.handler.callCount).to.eq(1)
+                expect(terminalState.transition.handler.callCount).to.eq(1)
               })
           })
         })
 
         describe('#terminate', function () {
           it('aborts running transition', function () {
-            scenario.entrypoint.transition.handler = function () {
+            entrypointState.transition.handler = function () {
               return new Promise(function () {})
             }
-            scenario.entrypoint.abort.handler = Sinon.spy(function () {})
+            entrypointState.abort.handler = Sinon.spy(function () {})
             var machine = autoFactory()
             machine.run()
             return machine
               .terminate()
               .then(function (result) {
                 expect(result.status).to.eq(Status.Aborted)
-                expect(scenario.entrypoint.abort.handler.callCount).to.eq(1)
+                expect(entrypointState.abort.handler.callCount).to.eq(1)
               })
           })
 
@@ -388,7 +383,7 @@ describe('Integration', function () {
 
         describe('#getTransition()', function () {
           it('returns running transition', function () {
-            scenario.entrypoint.transition.handler = function () {
+            entrypointState.transition.handler = function () {
               return new Promise(function () {})
             }
             var machine = autoFactory()

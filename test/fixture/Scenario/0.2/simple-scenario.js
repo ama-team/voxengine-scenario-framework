@@ -17,13 +17,13 @@ module.exports = {
       entrypoint: {
         entrypoint: true,
         transition: function (_, hints) {
-          this.state.logger.info('look what have been passed: {}', hints)
+          this.info('look what have been passed: {}', hints)
           return 'intermediate'
         }
       },
       intermediate: {
         transition: function () {
-          this.state.logger.info('this state should trigger next via external `$.triggers` property')
+          this.info('this state should trigger next via external `$.triggers` property')
           this.state.nextStateHints = hints.terminal
         },
         triggers: {
@@ -37,8 +37,8 @@ module.exports = {
       },
       terminal: {
         transition: function (_, hints) {
-          this.state.logger.info('time for a termination')
-          this.state.logger.info('by the way, these are the hints: {}', hints)
+          this.info('time for a termination')
+          this.info('by the way, these are the hints: {}', hints)
         },
         terminal: true
       }
@@ -46,11 +46,14 @@ module.exports = {
   },
   assertions: {
     result: {
-      scenario: {
-        status: OperationStatus.Finished
-      },
-      termination: {
-        status: OperationStatus.Finished
+      status: OperationStatus.Finished,
+      stages: {
+        scenario: {
+          status: OperationStatus.Finished
+        },
+        termination: {
+          status: OperationStatus.Finished
+        }
       }
     },
     handlers: {
@@ -60,8 +63,7 @@ module.exports = {
             count: 1,
             calls: [
               {
-                origin: null,
-                hints: hints.entrypoint
+                arguments: [null, hints.entrypoint]
               }
             ]
           }
@@ -71,8 +73,7 @@ module.exports = {
             count: 1,
             calls: [
               {
-                origin: 'entrypoint',
-                hints: {}
+                arguments: ['entrypoint', {}]
               }
             ]
           }
@@ -82,8 +83,7 @@ module.exports = {
             count: 1,
             calls: [
               {
-                origin: 'intermediate',
-                hints: hints.terminal
+                arguments: ['intermediate', hints.terminal]
               }
             ]
           }

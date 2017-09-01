@@ -12,7 +12,7 @@ var TimeoutException = SDK.Concurrent.TimeoutException
 var Future = SDK.Concurrent.Future
 
 var Transition = require('../../../../lib/Execution/Transition').Transition
-var Status = Transition.Status
+var Status = Transition.Stage
 
 describe('Integration', function () {
   describe('/Execution', function () {
@@ -31,7 +31,7 @@ describe('Integration', function () {
         var handlerFactory = function (handler, name, timeout) {
           name = name || 'handler'
           return {
-            id: name || 'handler',
+            id: name,
             handler: Sinon.spy(handler),
             timeout: typeof timeout === 'number' ? timeout : null,
             onTimeout: {
@@ -100,7 +100,7 @@ describe('Integration', function () {
               .run()
               .then(function (result) {
                 expect(result.value).to.eq(value)
-                expect(result.status).to.eq(Transition.Status.Executed)
+                expect(result.status).to.eq(Transition.Stage.Executed)
               })
           })
 
