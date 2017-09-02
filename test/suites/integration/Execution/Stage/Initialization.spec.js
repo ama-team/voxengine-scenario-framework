@@ -5,14 +5,14 @@ var Sinon = require('sinon')
 var Chai = require('chai')
 var expect = Chai.expect
 
-var Initialization = require('../../../../../lib/Execution/Stage/Initialization').Initialization
+var Initialization = require('../../../../../lib/Execution/Stage/InitializationStage').InitializationStage
 var Status = require('../../../../../lib/Schema/OperationStatus').OperationStatus
 
 describe('Unit', function () {
   describe('/Execution', function () {
     describe('/Stage', function () {
-      describe('/Initialization.js', function () {
-        describe('.Initialization', function () {
+      describe('/InitializationStage.js', function () {
+        describe('.InitializationStage', function () {
           var context
           var executor
           var deserializer

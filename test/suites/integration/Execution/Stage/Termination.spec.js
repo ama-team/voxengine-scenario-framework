@@ -10,15 +10,14 @@ var SDK = require('@ama-team/voxengine-sdk')
 var TimeoutException = SDK.Concurrent.TimeoutException
 
 var Executor = require('../../../../../lib/Execution/Executor').Executor
-var Termination = require('../../../../../lib/Execution/Stage/Termination').Termination
+var Termination = require('../../../../../lib/Execution/Stage/TerminationStage').TerminationStage
 var OperationStatus = require('../../../../../lib/Schema/OperationStatus').OperationStatus
-var Errors = require('../../../../../lib/Error/index')
 
 describe('Unit', function () {
   describe('/Execution', function () {
     describe('/Stage', function () {
-      describe('/Termination.js', function () {
-        describe('.Termination', function () {
+      describe('/TerminationStage.js', function () {
+        describe('.TerminationStage', function () {
           describe('#run()', function () {
             var handler
             var onTimeout
@@ -140,21 +139,6 @@ describe('Unit', function () {
                 .then(function (result) {
                   expect(result.status).to.eq(OperationStatus.Failed)
                   expect(result.value).to.eq(error)
-                })
-            })
-
-            it('catches framework error', function () {
-              var error = new Error()
-              executor.promise = Sinon.spy(function () {
-                throw error
-              })
-              var termination = autoFactory()
-              return termination
-                .run()
-                .then(function (result) {
-                  expect(result.status).to.eq(OperationStatus.Tripped)
-                  expect(result.value).to.be.instanceOf(Errors.UnexpectedError)
-                  expect(result.value.parent).to.eq(error)
                 })
             })
           })
