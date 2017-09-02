@@ -1,302 +1,399 @@
 # (Unofficial) VoxEngine Scenario Framework
 
-This repository is dedicated for a simple framework that runs VoxEngine
-scenarios.
+[![npm (scoped)](https://img.shields.io/npm/v/@ama-team/voxengine-scenario-framework.svg?style=flat-square)](https://www.npmjs.com/package/@ama-team/voxengine-scenario-framework)
+[![CircleCI/Master](https://img.shields.io/circleci/project/github/ama-team/voxengine-scenario-framework/master.svg?style=flat-square)](https://circleci.com/gh/ama-team/voxengine-scenario-framework/tree/master)
+[![Coveralls/Master](https://img.shields.io/coveralls/ama-team/voxengine-scenario-framework/master.svg?style=flat-square)](https://coveralls.io/github/ama-team/voxengine-scenario-framework)
+[![Scrutinizer/Master](https://img.shields.io/scrutinizer/g/ama-team/voxengine-scenario-framework/master.svg?style=flat-square)](https://scrutinizer-ci.com/g/ama-team/voxengine-scenario-framework?branch=master)
+[![Code Climate](https://img.shields.io/codeclimate/github/ama-team/voxengine-scenario-framework.svg?style=flat-square)](https://codeclimate.com/github/ama-team/voxengine-scenario-framework)
+
+This repository contains a framework which takes opinionated approach
+to handling VoxEngine scenarios. It takes care of different states,
+transitions between them, data saving and logging.
 
 To install this framework, simply run following command:
 
 ```
-npm i @ama-team/voxengine-scenario-framework --save
+npm i @ama-team/voxengine-scenario-framework -S
 ```
 
-## Diving in
+Please note that framework uses [@ama-team/voxengine-sdk][] under the
+hood, which may solve some other low-level problems for you.
 
-This framework treats scenario as a set of states, each having a 
-transition (usually that's called a callback) that leads scenario to
-particular state. Simplified scenario example may look like that:
+## What's the problem?
+
+Scenarios are complex and usually quite asynchronous things. Developing
+them the usual way usually results in ton of spaghetti code and unclear
+conditions hidden here and there, as well as no specific ordering
+on certain events that have to be ordered (for example, you can't emit
+more than one HTTP request after `VoxEngine.terminate()`). Promises
+are partial response to it, but it easily becomes as ugly when 
+unnecessary conditions come into play - e.g. you need to terminate the
+callback scenario when both calls are finished, but there is a chance
+that second call won't be made, so you need to take this into account
+and either create humongous control conditions or resolving promises 
+that didn't actually resolve.
+
+We need something stronger.
+
+## State model
+
+We can break down each scenario into set of states. Imagine the 
+simplest scenario fo notifying clients by call:
+
+1. Target phone number called
+2. Call failed, go to #4
+3. Call succeeded, say the phrase then go to #4
+4. Report to HTTP backend and terminate
+
+It can be easily represented as in code:
 
 ```js
-var scenario = {
-    states: [
-        {
-            id: 'connected',
-            entrypoint: true,
-            transition: function () {
-                var self = this,
-                    call = this.data.call = VoxEngine.callPSTN(this.arguments.number);
-                return new Promise(function(resolve, reject) {
-                    call.addEventListener(CallEvents.Connected, resolve({trigger: 'disconnected'}));
-                    call.addEventListener(CallEvents.Failed, reject({}));
-                });
-            }
-        },
-        {
-            id: 'messagePlayed',
-            transition: function () {
-                var self = this;
-                return new Promise(function(resolve) {
-                    self.data.call.say('It\'s me, Leha! Help me get out of the dog');
-                    self.data.call.addEventListener(CallEvents.PlaybackFinished, function() {
-                        resolve({trigger: 'disconnected'});
-                    });
-                });
-            }
-        },
-        {
-            id: 'disconnected',
-            terminal: true,
-            transition: function() {
-                this.data.call.hangup();
-            }
-        }
-    ],
-    trigger: TriggerType.Http
+var states = {
+  entrypoint: {
+    entrypoint: true,
+    transition: function () {
+      var number = this.arguments.number
+      this.state.call = VoxEngine.callPSTN(number)
+    }
+  },
+  failed: {
+    transition: function () {
+      this.state.success = false
+    },
+    triggers: {
+      id: 'terminated'
+    }
+  },
+  connected: {
+    transition: function () {
+      return new Promise(function (resolve) {
+        var call = VoxEngine.callPSTN(number)
+        this.state.call = call
+        call.addEventListener(CallEvents.Connected, function () {
+          resolve({trigger: 'communicated'})
+        })
+        call.addEventListener(CallEvents.Failed, function () {
+          this.state.success = false
+          resolve({transitionedTo: 'failed'})
+        })
+      })
+      var phrase = this.arguments.phrase
+      
+      return new Promise(function (resolve, reject) {
+        this.state.call.say(phrase, Language.US_ENGLISH_FEMALE)
+        this.state.call.addEventListener(CallEvents.PlaybackFinished, function() {
+          this.state.success = true
+          resolve({trigger: 'terminated'})
+        })
+      })
+    }
+  },
+  communicated: {
+    transition: function() {
+      return new Promise(function (resolve) {
+        this.state.call.say(phrase, Language.US_ENGLISH_FEMALE)
+        this.state.call.addEventListener(CallEvents.PlaybackFinished, function() {
+          this.state.call.hangup()
+          this.state.success = true
+          resolve()
+        })
+      })
+    },
+    triggers: {
+      id: 'terminated'
+    }
+  },
+  terminated: {
+    terminal: true,
+    transition: function () {
+      var options = new Net.HttpRequestOptions()
+      options.postData = JSON.stringify({success: this.state.success})
+      return Net.httpRequestAsync('http://some-backend', options)
+    }
+  }
 }
 ```
 
-Each state transition is either nothing (no operation required to 
-reach state), a value, a promise or a function. Framework analyzes 
-contents of `transition` property and wraps it in additional 
-conversion code. After transition has been done, framework updates
-current state and, if it sees `trigger` property on returned object,
-triggers next transition, eventually reaching state with `terminal`
-property set to `true`, and at this point it knows there won't be any 
-further state.
+While this scenario is more complex as if all this logic has been 
+written in straightforward way, it shows how another approach looks
+like. Now you have explicit states and transitions that are required
+to travel from one state to another; each transition may tell engine
+that it ended not so well, resulting in a completely another state.
+The scenario itself now boils only to crucial points (states) and
+possible outcomes during a transition. Beside that, framework also
+helps in apssing arguments inside scenario and cornering some sharp 
+edges. So, let's inspect what we have here.
 
-To launch such scenario you will need code like following:
+## Scenario schema
 
-```js
-var sdk = require('@ama-team/voxengine-sdk'),
-    framework = require('@ama-team/voxengine-scenario-framework'),
-    scenario = {
-        // stripped off for clarity    
-    },
-    settings = {
-        logLevel: sdk.loggers.LogLevel.Info,
-        customDataDeserializer: function(customData) {
-            try {
-                return JSON.parse(customData);
-            } catch (e) {
-                return {};
-            }
-        }
-    };
+<sub><sup>
+// this section contains examples in YAML rather than in javascript 
+for higher readability
+</sup></sup>
 
-framework.run(scenario, settings);
+First of all, scenario has three auxiliary properties describing 
+itself. They are completely optional, but will save you a lot of 
+debugging time.
+
+```yml
+id: <string, optional>
+version: <string, optional>
+environment: <string, optional>
 ```
 
-After that you just need to set up your bundling machine to produce
-single-file script, and you're done. Don't forget to strip the 
-comments - VoxImplant restricts scripts bigger than 128kb.
+Then there is states structure:
 
-## Diving deeper
+```yml
+states:
+  <name:string>:
+    entrypoint: <boolean, optional>
+    terminal: <boolean, optional>
+    transition: <handler>
+    abort: <handler, optional>
+    triggers: # optional
+      id: <state name:string>
+      hints: <object/function, optional>
+```
 
-While the everything specified above is still true, there are plenty of 
-things that should be clarified.
+Scenario has to have exactly one entrypoint state and at least one
+terminal state - otherwise it won't be launched.
 
-### Conventions
+And metadata/metaprocessing section:
 
-This framework follows several ideas:
+```yml
+# whether the scenario is launched by http call or phone call
+trigger: <Framework.TriggerType>
+# default arguments
+arguments: <object, optional>
+# default context state, doesn't relate to states discussed above
+state: <object, optional>
+onTermination: <handler, optional>
+onError: <handler, optional>
+# used to deserialize arguments from custom data
+deserializer: <handler, optional>
+timeouts: <object<string, int/null>
+```
 
-- Every lengthy action (transition, abort, staying in particular state)
-may be timed out. Scenario may be timed out as well.
-- Every failed action means that scenario has failed. The only 
-exception is made for failed aborted transitions.
-- Every timed out lengthy action may have rescue handler, so it may
-save scenario from failure. Rescue handlers are run only in case of
-timeout event, in every other case lengthy action must save itself on
-it's own.
-- Every lengthy action is fed with cancellation token that allows 
-action to discover it is cancelled or timed out.
-- Every user-defined function (e.g. transition) is fed with current 
-scenario execution as `this`.
-- While there are timeout defaults, all timeouts are configurable, and
-no timeout is hardcoded.
-- Promises over listeners.
+Handler is a slightly complex structure:
 
-### State
+```yml
+handler: <function>
+timeout: <int/null, optional>
+onTimeout:
+  handler: <function>
+  timeout: <int/null, optional>
+```
 
-The state consists of more things than listed in example. Full schema
-of state declaration is specified below:
+However, you can always specify it just as a function, and engine will
+simply expand it.
+
+## Passing data between states
+
+In lots of scenarios you will need to pass some data around and/or know
+previous state from which engine is transitioning. Transition function
+interface accepts three arguments:
+
+```js
+function transition (previousStateId, hints, cancellationToken) {}
+``` 
+
+First argument will contain the name of previous state. Hints is an
+that may contain any data you want, and you may set whenever you 
+trigger some state:
+
+```js
+var states = {
+  preterminal: {
+    transition: function () {
+      return {trigger: {id: 'terminal', hints: {sendDebugInfo: true}}}
+    },
+  },
+  terminal: {
+    transition: function (previous, hints) {
+      if (hints.sendDebugInfo) {
+        // Do something
+      }
+    },
+  }
+}
+```
+
+```js
+var states = {
+  preterminal: {
+    triggers: {
+      id: 'terminal',
+      hints: {sendDebugInfo: true}
+    }
+  }
+}
+```
+
+Moreover, hints may be a function that will be called in the same 
+context in the moment of trigger processing.
+
+The third argument is an advanced aspect discussed later.
+
+## The context
+
+All use-suppleid code is executed inside the context - that means that
+same specific object will be passed as `this`. This object has 
+following properties:
+
+```yml
+arguments: <object>
+state: <object>
+transitionTo: <function<string, hints>>
+trace: <function<message, ...replacements>>
+debug: <function<message, ...replacements>>
+info: <function<message, ...replacements>>
+notice: <function<message, ...replacements>>
+warn: <function<message, ...replacements>>
+error: <function<message, ...replacements>>
+```
+
+## Non-triggering states / coding outside of the box
+
+Basically, the term state itself doesn't imply that there is any kind
+immediate transition to another state. In case transition doesn't
+return the `{trigger: something}` structure and there is no `.triggers`
+property on the state, the framework will state in specific state until
+something calls the `.transitionTo` method on context:
 
 ```js
 var state = {
-    id: 'string', // state id, unique inside stage
-    entrypoint: false,
-    terminal: false,
-    transition: function (previousState, hints, cancellationToken) {
-        // accepts current scenario execution as `this` and returns promise
-        // that resolves once state is reached
-        
-        // hints is user-defined object to pass data or help with conditional logic
-        
-        // cancellationToken is a special object with `isCancelled()` method
-        // it allows you to not take some actions if transition has been cancelled
-    },
-    onTransitionTimeout: function (previousState, hints, cancellationToken, error) {
-        // rescue handler in case transition has timed out
-    },
-    abort: function (previousState, hints, cancellationToken) {
-        // triggered if another transition has been started during this one
-    },
-    onAbortTimeout: function (previousState, hints, cancellationToken, error) {
-      
-    },
-    // values equal to false or lesser than zero are treated as 'no timeout'
-    // millisecond is used as time unit
-    timeouts: {
-        // useful to cancel long dials automatically
-        transition: 45 * 1000,
-        onTransitionTimeout: 15 * 1000,
-        abort: 15 * 1000,
-        onAbortTimeout: 3 * 1000,
-        onTimeout: 3 * 1000,
-        // state timeout
-        state: null
-    }
-};
-```
-
-Whenever framework receives call for transition into state X, it calls 
-`transition` property and waits for timeout being set. If transition
-timeouts, corresponding rescue handler is called. Rescue handler 
-returns promise that is treated just as one returned by transition, but
-default handler simply passes error through. Both transition and rescue
-handler get same `previousState` and `hints` arguments, but 
-`cancellationToken` differs.
-
-Transition / rescue handler chain return value is checked for
-`transitionedTo` and `trigger` properties. The first one allows to 
-override state scenario has reached, the second one allows to trigger
-next transition instantly:
- 
-```js
-var full = {
-    id: 'initialized',
-    transition: function () {
-        return Promise.resolve({
-            transitionedTo: 'truly-initialized',
-            trigger: {
-                id: 'terminated',
-                hints: {
-                    callTookLessThanThirtySeconds: true
-                }
-            }
-        });
-    }
-};
-
-var shortcuts = {
-    id: 'initialized',
-    transition: function () {
-        return Promise.resolve({
-            transitionedTo: 'truly-initialized',
-            // sorry, no hints in shortcut
-            trigger: 'terminated'
-        });
-    }
+  transition: function () {
+    var trigger = this.transitionTo.bind(this, {trigger: 'terminated'})
+    this.state.call.addEventListener(CallEvents.Disconnected, trigger)
+  }
 }
 ```
 
-In case transition / rescue handler chain 
-ends up with a rejected promise, the whole scenario is considered 
-failed and terminate sequence is launched.
+This also means scenario may hang in near-infinity in some state until 
+VoxEngine kicks whole execution out.
 
-Abort and abort rescue handler pair act in the same way (except for 
-result processing), being called whenever new transition is issued 
-while current one hasn't ended.
+If `.transitionTo()` is called during another transition, previous 
+transition gets aborted: it's abort handler is called, and it's 
+cancellation token (third argument) gets cancelled. Because there is no 
+direct way to abort running code, transition that may be abort should 
+regularly check if token has been cancelled (`token.isCancelled()`) 
+before proceeding further.
 
-### Scenario
+## Arguments
+
+Scenarios (at least HTTP-triggered) usually need arguments to run.
+This framework allows to specify some hardcoded arguments and to 
+deserialize them from customData using the `.deserializer` scenario
+property. Framework will tak hardcoded arguments, apply deserializer
+on customData (either VoxEngine.customData or call.customData, 
+depending on scenario trigger type), and then recursively merge them.
+Please note that if deserializer fails (throws error or returns 
+rejected thenable), the whole scenario will be aborted.
+
+By default, framework will try to decode JSON out of customData and
+silently proceed on fail.
+
+## Timeouts
+
+Every lengthy action should have a timeout to prevent infinite hangs.
+There are two options that control it: individual timeout settings on
+handlers and scenario-wide default values (specified in `.timeouts` 
+property):
 
 ```js
 var scenario = {
-    id: 'callback', // used for logging only
-    version: '0.1.0', // used for logging only
-    environment: 'production', // used for logging only
-    states: [
-        {
-            id: 'initialized',
-            entrypoint: true
-        },
-        {
-            id: 'terminated',
-            terminal: true
+  states: {
+    entrypoint: {
+      transition: {
+        // timeout of 20 will be used
+        handler: function () {},
+        onTimeout: {
+          // timeout of 20 will be used because of override
+          handler: function () {},
+          timeout: 20
         }
-    ],
-    trigger: TriggerType.Http,
-    onTermination: function (hints, cancellationToken) {
-        // you may do necessary post-scenario routine here and then resolve returned promise
-    },
-    onTerminationTimeout: function (hints, cancellationToken, error) {
-        // rescue handler
-    },
-    timeouts: {
-        // here you can specify scenario timeouts and state tiemout defaults
-        scenario: null,
-        onTermination: 15 * 1000,
-        onTerminationTimeout: 15 * 1000,
-        state: null,
-        transition: 45 * 1000,
-        onTransitionTimeout: 15 * 1000,
-        abort: 15 * 1000,
-        onAbortTimeout: 3 * 1000
+      }
     }
-};
+  },
+  timeouts: {
+    transition: 20,
+    onTransitionTimeout: 10
+  }
+}
 ```
+ 
+Timeouts are set in milliseconds, every value but number >=
+0 is treated as a 'no timeout'.
 
-Essentially, you may define scenario using only `states` and `trigger` 
-properties. Scenario has to have exactly one `entrypoint` state and at 
-least one `terminal` state to be successfully validated.
+In case of timeout cancellation token is cancelled as well.
 
-### Execution
+## Terminating
 
-Execution is an object that is passed as `this` to all user-defined
-actions, which allows to store intermediate data, pass dependency 
-injections and call `transitionTo` method:
+Usually there is some kind of post-scenario things to be done, like 
+waiting for all background HTTP requests or printing results to log.
+For tasks like that you can specify a termination handler in scenario:
 
 ```js
-var execution = {
-    data: {}, // put here anything you wish, inteneded to store data between states
-    container: {}, // dependency injection container
-    arguments: {}, // arguments passed by trigger
-    debug: function (message) {
-        // logs message, substituting pattern {} with extra arguments
-    },
-    info: function (message) {},
-    warn: function (message) {},
-    error: function (message) {},
-    transitionTo: function (state, hints) {
-        // allows to trigger transitions whenever you need
-    }
+var scenario = {
+  onTermination: function () {
+    return awaitSomething()
+  }
 }
 ```
 
-### Validation
+Termination handler acts the very same as other handlers, but receives
+`TInitializationStageResult` and `TScenarioStageResult` as arguments.
 
-You should validate your scenario before pushing to VI. This can be
-easily done via corresponding call:
+## Errors and error handling
+
+There are several places when error may be thrown:
+
+- Argument deserializer. In that case termination handler will be
+called instantly and scenario won't be executed.
+- Active transition. This will cause `scenario.onError` handler to be 
+triggered, and, if it doesn't respond with 
+`{trigger: some other state}`, halt the scenario with an error,
+still calling `scenario.onTermination` handler.
+- Termination handler. This will do nothing but halt it as javascript
+does with every piece of code throwing an exception.
+- And, finally, the framework itself. This will cause piece of code to
+end with `Tripped` status, so watch for these to report.
+
+The onError handler signature is simple:
 
 ```js
-var framework = require('@ama-team/voxengine-scenario-framework'),
-    scenario = {};
+var onError = function (error, previousState, targetState, hints) {}
+``` 
 
-    validationResult = framework.validate(framework.normalize(scenario));
-```
+onError may take some time to figure out what to do and may return a 
+promise, as any other handler, as well as be timed out. 
 
-validation result looks like this:
+## Logging
+
+Framework logs everything it can, which is usually not what you really
+want. However, the logger is taken from [@ama-team/voxengine-sdk][] and
+is controlled accordingly:
 
 ```js
-var validationResult = {
-    valid: true,
-    violations: [
-        'strings that describe problems'
-    ]
-}
+var SDK = require('@ama-team/voxengine-sdk')
+var Logger = SDK.Logger
+var Slf4j = Logger.Slf4j
+
+// decreasing overall verbosity
+Slf4j.setLevel(Logger.Level.Warn)
+// increasing scenario log verbosity
+Slf4j.setLevel('ama-team.vsf.context', Logger.Level.Debug)
 ```
 
-Please note that `valid` property is not the same as `violations`
-property emptiness, some reported violations may not convert scenario to
-invalid one.
+By default, all INFO and higher level messages should be logged.
+
+## Validation
+
+To prevent invalid scenario from uploading, you may validate it first.
+To do so, just run `Framework.validate` to receive a `TValidationSet`
+object. If it's severity is 
+`Framework.Schema.Validator.Severity.Fatal`, scenario is invalid and 
+can't be used.
 
 ## Concurrency notes
 
@@ -317,17 +414,12 @@ something won't work as expected.
 contains jsdoc definitions for VoxEngine internals. Be sure to install 
 it if you need autocompletion in IDE other than provided by official 
 web UI.
-- `@ama-team/voximplant-publisher` is lazily developed and may be 
-already released at this moment
-- There are plans for automated runner and any testing framework
-integration but oh god where do we get such amount of time
+- `@ama-team/voximplant-publisher` *should* be finished someday.
 
-## Future plans
+## Dev branch state
 
-- onTimeout state handlers
-- Better documentation
-- Possibly dropping down OOP purity level (too many `this` calls for 
-JavaScript)
-- Possibly converting `states: [{id: '<id>'}]` schema to 
-`states: { <id>: {} }`
-- Possibly adding stages concept 
+[![CircleCI/Dev](https://img.shields.io/circleci/project/github/ama-team/voxengine-scenario-framework/dev.svg?style=flat-square)](https://circleci.com/gh/ama-team/voxengine-scenario-framework/tree/dev)
+[![Coveralls/Dev](https://img.shields.io/coveralls/ama-team/voxengine-scenario-framework/dev.svg?style=flat-square)](https://coveralls.io/github/ama-team/voxengine-scenario-framework)
+[![Scrutinizer/Dev](https://img.shields.io/scrutinizer/g/ama-team/voxengine-scenario-framework/dev.svg?style=flat-square)](https://scrutinizer-ci.com/g/ama-team/voxengine-scenario-framework?branch=dev)
+
+  [@ama-team/voxengine-sdk]: https://npmjs.org/package/@ama-team/voxengine-sdk
