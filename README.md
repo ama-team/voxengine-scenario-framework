@@ -1,6 +1,6 @@
 # (Unofficial) VoxEngine Scenario Framework
 
-[![npm (scoped)](https://img.shields.io/npm/v/@ama-team/voxengine-scenario-framework.svg?style=flat-square)](https://www.npmjs.com/package/@ama-team/voxengine-scenario-framework)
+[![npm](https://img.shields.io/npm/v/@ama-team/voxengine-scenario-framework.svg?style=flat-square)](https://www.npmjs.com/package/@ama-team/voxengine-scenario-framework)
 [![CircleCI/Master](https://img.shields.io/circleci/project/github/ama-team/voxengine-scenario-framework/master.svg?style=flat-square)](https://circleci.com/gh/ama-team/voxengine-scenario-framework/tree/master)
 [![Coveralls/Master](https://img.shields.io/coveralls/ama-team/voxengine-scenario-framework/master.svg?style=flat-square)](https://coveralls.io/github/ama-team/voxengine-scenario-framework)
 [![Scrutinizer/Master](https://img.shields.io/scrutinizer/g/ama-team/voxengine-scenario-framework/master.svg?style=flat-square)](https://scrutinizer-ci.com/g/ama-team/voxengine-scenario-framework?branch=master)
@@ -81,20 +81,12 @@ var scenario = {
             resolve({transitionedTo: 'failed'})
           })
         })
-        var phrase = this.arguments.phrase
-        
-        return new Promise(function (resolve, reject) {
-          this.state.call.say(phrase, Language.US_ENGLISH_FEMALE)
-          this.state.call.addEventListener(CallEvents.PlaybackFinished, function() {
-            this.state.success = true
-            resolve({trigger: 'terminated'})
-          })
-        })
       }
     },
     communicated: {
       transition: function() {
         return new Promise(function (resolve) {
+          var phrase = this.arguments.phrase
           this.state.call.say(phrase, Language.US_ENGLISH_FEMALE)
           this.state.call.addEventListener(CallEvents.PlaybackFinished, function() {
             this.state.call.hangup()

@@ -93,7 +93,7 @@ describe('Integration', function () {
           infiniteState = stateFactory('infinite', function () {
             return new Promise(function () {})
           })
-          errorHandler = Sinon.spy(function () {})
+          errorHandler = handlerFactory(function () {}, null, 'onError')
           scenario = scenarioFactory()
         })
 
@@ -142,8 +142,8 @@ describe('Integration', function () {
               .then(function (result) {
                 expect(result.status).to.eq(Status.Failed)
                 expect(result.value).to.eq(error)
-                expect(errorHandler.callCount).to.eq(1)
-                var args = errorHandler.getCall(0).args
+                expect(errorHandler.handler.callCount).to.eq(1)
+                var args = errorHandler.handler.getCall(0).args
                 expect(args[0]).to.eq(error)
                 expect(args[1]).to.eq(null)
                 expect(args[2]).to.eq(entrypointState.id)
@@ -156,7 +156,7 @@ describe('Integration', function () {
             entrypointState.transition.handler = Sinon.spy(function () {
               throw error
             })
-            errorHandler = Sinon.spy(function () {
+            errorHandler.handler = Sinon.spy(function () {
               throw new Error()
             })
             var machine = autoFactory()
@@ -165,7 +165,23 @@ describe('Integration', function () {
               .then(function (result) {
                 expect(result.status).to.eq(Status.Failed)
                 expect(result.value).to.eq(error)
-                expect(errorHandler.callCount).to.eq(1)
+                expect(errorHandler.handler.callCount).to.eq(1)
+              })
+          })
+
+          it('allows error handler to rescue the situation', function () {
+            errorHandler.handler = Sinon.spy(function () {
+              return {trigger: {id: 'terminal'}}
+            })
+            entrypointState.transition.handler = Sinon.spy(function () {
+              throw new Error()
+            })
+            var machine = autoFactory()
+            return machine
+              .run()
+              .then(function (result) {
+                expect(result.status).to.eq(Status.Finished)
+                expect(errorHandler.handler.callCount).to.eq(1)
               })
           })
 
