@@ -12,21 +12,14 @@ var TimeoutException = SDK.Concurrent.TimeoutException
 var Future = SDK.Concurrent.Future
 
 var Transition = require('../../../../lib/Execution/Transition').Transition
-var Status = Transition.Stage
+var Executor = require('../../../../lib/Execution/Executor').Executor
+var Status = Transition.Status
 
 describe('Integration', function () {
   describe('/Execution', function () {
     describe('/Transition.js', function () {
       describe('.Transition', function () {
-        var executor = {
-          promise: function (callable, args) {
-            try {
-              return Promise.resolve(callable.apply(null, args))
-            } catch (e) {
-              return Promise.reject(e)
-            }
-          }
-        }
+        var executor = new Executor(null)
 
         var handlerFactory = function (handler, name, timeout) {
           name = name || 'handler'
@@ -100,7 +93,7 @@ describe('Integration', function () {
               .run()
               .then(function (result) {
                 expect(result.value).to.eq(value)
-                expect(result.status).to.eq(Transition.Stage.Executed)
+                expect(result.status).to.eq(Transition.Status.Executed)
               })
           })
 

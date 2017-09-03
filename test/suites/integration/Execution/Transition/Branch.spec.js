@@ -12,6 +12,7 @@ var Concurrent = SDK.Concurrent
 var CancellationToken = Concurrent.CancellationToken
 var TimeoutException = Concurrent.TimeoutException
 var ExecutionBranch = require('../../../../../lib/Execution/Transition/Branch').Branch
+var Executor = require('../../../../../lib/Execution/Executor').Executor
 
 function branchStopper () {
   throw new Error('This branch should not have executed')
@@ -22,16 +23,7 @@ describe('Integration', function () {
     describe('/Transition', function () {
       describe('/Branch.js', function () {
         describe('.Branch', function () {
-          var executor = {
-            promise: function (callable, args) {
-              try {
-                return Promise.resolve(callable.apply(null, args))
-              } catch (e) {
-                return Promise.reject(e)
-              }
-            }
-          }
-
+          var executor = new Executor(null)
           var optionsFactory = function (handler, onTimeout, name) {
             handler = handler || function () {
               return new Promise(function () {})
