@@ -50,18 +50,22 @@ describe('Unit', function () {
           it('uses provided onError handler', function () {
             var handler = function () {}
             var input = {
-              onError: handler
+              onError: {
+                handler: handler
+              }
             }
 
             var result = Normalizer.scenario(input)
-            expect(result.onError).to.eq(handler)
+            expect(result).to.have.property('onError')
+            expect(result.onError).to.have.property('handler').eq(handler)
           })
 
           it('creates dummy onError handler if missing', function () {
             var input = {}
             var result = Normalizer.scenario(input)
-            expect(result).to.have.property('onError').instanceOf(Function)
-            expect(result.onError).not.to.throw()
+            expect(result).to.have.property('onError')
+            expect(result.onError).to.have.property('handler').instanceOf(Function)
+            expect(result.onError.handler).not.to.throw()
           })
 
           it('uses provided onTermination handler', function () {

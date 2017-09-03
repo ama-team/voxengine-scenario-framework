@@ -7,8 +7,9 @@ var hints = {
 }
 
 module.exports = {
-  id: 'simple-scenario',
-  type: TriggerType.Http,
+  id: 'simple-call-scenario',
+  name: 'Scenario testing call alerting binding',
+  type: TriggerType.Call,
   setup: {
     customData: JSON.stringify(hints.entrypoint)
   },

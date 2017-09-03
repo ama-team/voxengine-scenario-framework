@@ -12,7 +12,6 @@ var SDK = require('@ama-team/voxengine-sdk')
 var Slf4j = SDK.Logger.Slf4j
 
 var FixtureRoot = Path.resolve(__dirname, '../../fixture/Scenario')
-var LogUrl = 'fake://log'
 
 /**
  * @param {string} id
@@ -23,6 +22,7 @@ var LogUrl = 'fake://log'
 function Scenario (id, fixture) {
   this.id = fixture.id || id
   this.name = fixture.name || this.id
+  this.description = fixture.description
 
   var events
   var logger = Slf4j.factory({}, 'ama-team.vsf.test.acceptance.scenario')
@@ -32,24 +32,22 @@ function Scenario (id, fixture) {
       fixture.scenario.trigger = fixture.type
     }
     fixture = Normalizer.normalize(fixture, id)
-    logger.info('Starting run\n\n\n')
   }
 
   this.setup = function () {
-    var call = {
-      customData: ''
-    }
+    var data = fixture.setup
+    var log = data.hasOwnProperty('log') ? data.log : 'fake://log'
+    var customData = data.hasOwnProperty('customData') ? data.customData : ''
+    var call = {customData: customData}
     events = [
-      new AppEvents.Started({logURL: LogUrl}),
+      new AppEvents.Started({logURL: log}),
       new AppEvents.CallAlerting({call: call})
     ]
-    if (fixture.setup.customData) {
-      VoxEngine.customData(fixture.setup.customData)
-      call.customData = fixture.setup.customData
-    }
+    customData !== '' && VoxEngine.customData(customData)
   }
 
   this.execute = function () {
+    logger.info('Starting run\n\n\n')
     var promise = Framework.run(fixture.scenario)
     events.forEach(VoxEngine._emit)
     return promise
@@ -94,7 +92,11 @@ Scenario.scenarios = function (version) {
 }
 
 Scenario.versions = function () {
-  return FileSystem.readdirSync(FixtureRoot)
+  return FileSystem
+    .readdirSync(FixtureRoot)
+    .filter(function (entry) {
+      return FileSystem.statSync(Path.resolve(FixtureRoot, entry)).isDirectory()
+    })
 }
 
 module.exports = {

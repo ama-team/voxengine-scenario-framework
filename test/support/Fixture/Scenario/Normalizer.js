@@ -2,12 +2,14 @@ var Sinon = require('sinon')
 
 var Objects = require('../../../../lib/Utility').Objects
 var Barricade = require('../../../../lib/API').Barricade
+var Deserializer = require('../../../../lib/Schema/Defaults').Deserializer
 
 var Normalizer = {
   normalize: function (fixture, id) {
     fixture = Objects.copy(fixture)
     fixture.id = fixture.id || id
     this.name = fixture.name || fixture.id
+    fixture.scenario.id = fixture.id
     var structure = {
       result: {
         stages: {
@@ -35,27 +37,25 @@ var Normalizer = {
       })
       scenario.states[id] = state
     })
-    scenario.onTermination = Normalizer.handler(scenario.onTermination)
+    scenario.deserializer = scenario.deserializer || Deserializer
+    var handlers = ['deserializer', 'onError', 'onTermination']
+    handlers.forEach(function (handler) {
+      scenario[handler] = Normalizer.handler(scenario[handler], handler)
+    })
     return (new Barricade()).scenario(scenario)
   },
   handler: function (handler, id) {
-    handler = Normalizer.partialHandler(handler, function () {}, id)
-    handler.onTimeout = Normalizer.partialHandler(handler.onTimeout, handler.handler, 'on' + id + 'timeout')
-    handler.handler = Sinon.spy(handler.handler)
-    handler.onTimeout.handler = Sinon.spy(handler.handler)
-    return handler
-  },
-  partialHandler: function (handler, defaultValue, id) {
     if (!handler) {
       handler = {handler: null}
     }
     if (Objects.isFunction(handler)) {
       handler = {handler: handler}
     }
-    if (!Objects.isFunction(handler.handler)) {
-      handler.handler = defaultValue
-    }
     handler.id = id
+    handler.handler = Sinon.spy(handler.handler)
+    if (handler.onTimeout) {
+      handler.onTimeout = Normalizer.handler(handler.onTimeout, 'on' + id + 'timeout')
+    }
     return handler
   }
 }
