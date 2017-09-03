@@ -155,20 +155,6 @@ describe('Integration', function () {
               expect(result.stages.termination.status).to.eq(Status.Finished)
             })
         })
-
-        it('processes unexpected error', function () {
-          var error = new Error()
-          autoFactory()
-          run.getExecutionStage().run = function () {
-            throw error
-          }
-          return run
-            .execute({})
-            .then(function (result) {
-              expect(result.status).to.eq(Status.Tripped)
-              expect(result.error).to.eq(error)
-            })
-        })
       })
     })
   })

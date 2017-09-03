@@ -75,23 +75,6 @@ describe('Unit', function () {
           })
         })
 
-        describe('#getStatus()', function () {
-          it('creates object with execution delegates', function () {
-            var execution = {
-              getRunningTime: Sinon.stub(),
-              getState: Sinon.stub(),
-              getTransition: Sinon.stub()
-            }
-            var context = new Context(execution)
-            var status = context.getStatus()
-
-            Object.keys(execution).forEach(function (key) {
-              status[key]()
-              expect(execution[key].callCount).to.eq(1)
-            })
-          })
-        })
-
         var deprecatedProperties = {args: 'arguments', data: 'state'}
         Object.keys(deprecatedProperties).forEach(function (property) {
           describe('#' + property, function () {

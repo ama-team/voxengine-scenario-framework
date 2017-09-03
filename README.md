@@ -41,8 +41,9 @@ We can break down each scenario into set of states. Imagine the
 simplest scenario fo notifying clients by call:
 
 1. Target phone number called
-2. Call failed, go to #4
-3. Call succeeded, say the phrase then go to #4
+2. Call failed, go to #5
+3. Call succeeded, go to #4
+3. Say the phrase then go to #5
 4. Report to HTTP backend and terminate
 
 It can be easily represented as in code:
@@ -58,6 +59,7 @@ var scenario = {
       transition: function () {
         var number = this.arguments.number
         this.state.call = VoxEngine.callPSTN(number)
+        return {trigger: 'connected'}
       }
     },
     failed: {
@@ -111,13 +113,13 @@ var scenario = {
 }
 ```
 
-While this scenario is more complex as if all this logic has been 
+While this scenario is more complex than all the same logic but 
 written in straightforward way, it shows how another approach looks
 like. Now you have explicit states and transitions that are required
 to travel from one state to another; each transition may tell engine
 that it ended not so well, resulting in a completely another state.
 The scenario itself now boils only to crucial points (states) and
-possible outcomes during a transition. Beside that, framework also
+possible outcomes during a transition. Besides that, framework also
 helps in passing arguments inside scenario and cornering some sharp 
 edges. So, let's inspect what we have here.
 
@@ -127,8 +129,8 @@ edges. So, let's inspect what we have here.
 for higher readability*
 
 First of all, scenario has three auxiliary properties describing 
-itself. They are completely optional, but will save you a lot of 
-debugging time.
+itself. They are completely optional, but may save you some debugging
+time.
 
 ```yml
 id: <string, optional>
@@ -153,7 +155,7 @@ states:
 Scenario has to have exactly one entrypoint state and at least one
 terminal state - otherwise it won't be launched.
 
-And metadata/metaprocessing section:
+Then there is metadata/metaprocessing section:
 
 ```yml
 # whether the scenario is launched by http call or phone call
@@ -182,11 +184,14 @@ onTimeout:
 However, you can always specify it just as a function, and engine will
 simply expand it.
 
+After specifying this structure running it is as simple as calling
+`Framework.run(scenario)`.
+
 ## Passing data between states
 
 In lots of scenarios you will need to pass some data around and/or know
 previous state from which engine is transitioning. Transition function
-interface accepts three arguments:
+signature specifies three arguments:
 
 ```js
 function transition (previousStateId, hints, cancellationToken) {}
@@ -238,6 +243,7 @@ following properties:
 ```yml
 arguments: <object>
 state: <object>
+trigger: <TScenarioTrigger>
 transitionTo: <function<string, hints>>
 trace: <function<message, ...replacements>>
 debug: <function<message, ...replacements>>
@@ -249,12 +255,14 @@ error: <function<message, ...replacements>>
 
 Logger methods are forwarded to Slf4j-alike logger from 
 [@ama-team/voxengine-sdk][]. It has a nice feature of resolving
-`{}` placeholders into arguments, so 
+`{}` placeholders into arguments, so
+
 ```js
 this.warn('{} has jumped over {}', 'quick fox', 'lazy dog')
 ````
 
-Will result in a phrase you've seen a thousand times. 
+Will result in a phrase you've seen a thousand times. You will find
+more information on the [library page][@ama-team/voxengine-sdk]. 
 
 ## Non-triggering states / coding outside of the box
 
@@ -285,7 +293,6 @@ before proceeding further:
 
 ```js
 var httpCallsMadeState = function (p, h, token) {
-  var valueA = client.performRequest()
   return client
     .performRequest('/ping')
     .then(function () {
@@ -299,7 +306,7 @@ var httpCallsMadeState = function (p, h, token) {
 Scenarios (at least HTTP-triggered) usually need arguments to run.
 This framework allows to specify some hardcoded arguments and to 
 deserialize them from customData using the `.deserializer` scenario
-property. Framework will tak hardcoded arguments, apply deserializer
+property. Framework will take hardcoded arguments, apply deserializer
 on customData (either VoxEngine.customData or call.customData, 
 depending on scenario trigger type), and then recursively merge them.
 Please note that if deserializer fails (throws error or returns 

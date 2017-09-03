@@ -1,41 +1,33 @@
-var Schema = require('../../../../lib/Schema')
+var Schema = require('../../../../lib/Schema/index')
 var TriggerType = Schema.TriggerType
 var OperationStatus = Schema.OperationStatus
 
 module.exports = {
-  name: 'State handler timeout recovery',
-  description: 'Validates that state handler may recover from timeout using provided handler',
+  id: 'abort-handler-utilization',
+  name: 'Scenario with abort handlers application',
   type: TriggerType.Http,
   setup: {},
   scenario: {
     states: {
       entrypoint: {
         entrypoint: true,
-        transition: {
-          handler: function () {
-            return new Promise(function () {})
-          },
-          onTimeout: function () {
-            return {trigger: {id: 'terminal'}}
-          }
+        transition: function (p, h, token) {
+          setTimeout(this.transitionTo.bind(this, 'terminal'), 0)
+          return token
         }
       },
       terminal: {
-        transition: function () {},
+        transition: function () {
+          this.info('time for termination')
+        },
         terminal: true
       }
-    },
-    timeouts: {
-      transition: 0
     }
   },
   assertions: {
     result: {
       status: OperationStatus.Finished,
       stages: {
-        initialization: {
-          status: OperationStatus.Finished
-        },
         scenario: {
           status: OperationStatus.Finished
         },
@@ -50,7 +42,7 @@ module.exports = {
           transition: {
             count: 1
           },
-          'transition.onTimeout': {
+          abort: {
             count: 1
           }
         },
@@ -59,15 +51,6 @@ module.exports = {
             count: 1
           }
         }
-      },
-      deserializer: {
-        count: 1
-      },
-      onError: {
-        count: 0
-      },
-      onTermination: {
-        count: 1
       }
     }
   }

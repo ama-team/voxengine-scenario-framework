@@ -38,7 +38,7 @@ module.exports = {
       },
       terminal: {
         transition: function (_, hints) {
-          this.info('time for a termination')
+          this.info('time for termination')
           this.info('by the way, these are the hints: {}', hints)
         },
         terminal: true
