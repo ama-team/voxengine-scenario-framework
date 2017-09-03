@@ -21,13 +21,13 @@ describe('Acceptance', function () {
           Fixture.scenarios(version).forEach(function (id) {
             var scenario = Fixture.load(version, id)
             it('complies to scenario \'' + scenario.name + '\'', function () {
-              return scenario.assert().then(function () {
+              return scenario.assert().then(function (value) {
                 // added with the only purpose of placing breakpoints
                 // in case promise leakage is suggested
-                // also binds
-                console.log.bind(console)
-              }, function () {
-                console.log.bind(console)
+                // also returns
+                return value
+              }, function (e) {
+                throw e
               })
             })
           })
