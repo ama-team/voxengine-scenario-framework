@@ -69,5 +69,8 @@
     "promise": "^7.3.1",
     "sinon": "^3.0.0",
     "standard": "^10.0.3"
+  },
+  "standard": {
+    "ignore": ["examples"]
   }
 }

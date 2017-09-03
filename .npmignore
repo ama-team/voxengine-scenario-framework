@@ -20,3 +20,4 @@ circle.yml
 
 # Other
 .gitignore
+examples
