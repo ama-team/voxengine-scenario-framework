@@ -93,7 +93,12 @@ describe('Unit', function () {
             var input = {
               timeouts: timeouts,
               states: {
-                entrypoint: {}
+                entrypoint: {
+                  transition: {
+                    handler: function () {},
+                    onTimeout: function () {}
+                  }
+                }
               }
             }
 

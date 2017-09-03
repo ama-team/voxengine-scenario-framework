@@ -26,17 +26,29 @@ describe('Unit', function () {
               }
             }
 
-            expect(Normalizer.stateHandler(handler, handler.id, {})).to.equal(handler)
+            expect(Normalizer.handler(handler, handler.id, {})).to.equal(handler)
           })
 
-          it('creates timeout handler', function () {
+          it('doesn\'t create timeout handler by default', function () {
             var handler = {
               id: id,
               handler: function () {},
               timeout: 10
             }
 
-            var result = Normalizer.stateHandler(handler, handler.id, {})
+            var result = Normalizer.handler(handler, handler.id, {})
+            expect(result).not.to.have.property('onTimeout')
+          })
+
+          it('creates timeout handler', function () {
+            var handler = {
+              id: id,
+              handler: function () {},
+              timeout: 10,
+              onTimeout: function () {}
+            }
+
+            var result = Normalizer.handler(handler, handler.id, {})
             expect(result).to.have.property('onTimeout')
             var onTimeout = result.onTimeout
             expect(onTimeout).to.have.property('id').eq('onHandlerTimeout')
@@ -50,7 +62,7 @@ describe('Unit', function () {
               handler: function () {}
             }
 
-            var result = Normalizer.stateHandler(handler, id, {})
+            var result = Normalizer.handler(handler, id, {})
             expect(result).to.have.property('id').eq(id)
           })
 
@@ -61,10 +73,11 @@ describe('Unit', function () {
             timeouts[onTimeoutId] = timeout
             var handler = {
               id: id,
-              handler: function () {}
+              handler: function () {},
+              onTimeout: function () {}
             }
 
-            var result = Normalizer.stateHandler(handler, id, timeouts)
+            var result = Normalizer.handler(handler, id, timeouts)
             expect(result).to.have.property('timeout').eq(timeout)
             expect(result).to.have.property('onTimeout')
             var onTimeout = result.onTimeout
@@ -74,7 +87,7 @@ describe('Unit', function () {
           it('recognizes function input', function () {
             var input = function () {}
 
-            var result = Normalizer.stateHandler(input, id, {})
+            var result = Normalizer.handler(input, id, {})
             expect(result).to.have.property('handler').equal(input)
           })
 
@@ -82,7 +95,7 @@ describe('Unit', function () {
             var value = {x: 12}
             var input = {handler: value}
 
-            var result = Normalizer.stateHandler(input, id, {})
+            var result = Normalizer.handler(input, id, {})
             expect(result).to.have.property('handler').instanceOf(Function)
             expect(result.handler()).to.equal(value)
           })

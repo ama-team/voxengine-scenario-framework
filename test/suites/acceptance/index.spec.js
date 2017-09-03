@@ -26,6 +26,8 @@ describe('Acceptance', function () {
                 // in case promise leakage is suggested
                 // also binds
                 console.log.bind(console)
+              }, function () {
+                console.log.bind(console)
               })
             })
           })

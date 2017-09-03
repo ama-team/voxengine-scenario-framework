@@ -7,6 +7,8 @@ var expect = Chai.expect
 
 var Initialization = require('../../../../../lib/Execution/Stage/InitializationStage').InitializationStage
 var Status = require('../../../../../lib/Schema/OperationStatus').OperationStatus
+var Executor = require('../../../../../lib/Execution/Executor').Executor
+var TimeoutException = require('@ama-team/voxengine-sdk').Concurrent.TimeoutException
 
 describe('Unit', function () {
   describe('/Execution', function () {
@@ -22,11 +24,12 @@ describe('Unit', function () {
             context = {
               arguments: {}
             }
-            executor = {
-              execute: Sinon.stub(),
-              getContext: Sinon.stub().returns(context)
+            executor = new Executor(context)
+            deserializer = {
+              handler: Sinon.stub().returns({}),
+              timeout: null,
+              onTimeout: null
             }
-            deserializer = Sinon.stub().returns({})
           })
 
           var factory = function (executor, deserializer) {
@@ -35,6 +38,7 @@ describe('Unit', function () {
           }
 
           var autoFactory = function () {
+            executor = new Executor(context)
             instance = factory(executor, deserializer)
             return instance
           }
@@ -45,7 +49,7 @@ describe('Unit', function () {
             context.arguments = {z: 13}
             var argExpectation = {x: 12, z: 13}
             var trigger = {arguments: args}
-            executor.execute.returns(args)
+            deserializer.handler.returns(args)
             autoFactory()
             instance.initialize()
             instance.setLog(log)
@@ -55,14 +59,14 @@ describe('Unit', function () {
                 expect(result.status).to.eq(Status.Finished)
                 expect(result.error).to.be.null
                 expect(result.log).to.eq(log)
-                expect(executor.execute.callCount).to.eq(1)
+                expect(deserializer.handler.callCount).to.eq(1)
                 expect(context.arguments).to.deep.eq(argExpectation)
               })
           })
 
           it('should catch argument deserialization error', function () {
             var error = new Error()
-            executor.execute.throws(error)
+            deserializer.handler.throws(error)
             var log = 'fake://log'
             autoFactory()
             instance.setLog(log)
@@ -73,7 +77,20 @@ describe('Unit', function () {
                 expect(result.status).to.eq(Status.Failed)
                 expect(result.error).to.eq(error)
                 expect(result.log).to.eq(log)
-                expect(executor.execute.callCount).to.eq(1)
+                expect(deserializer.handler.callCount).to.eq(1)
+              })
+          })
+
+          it('should time out as expected', function () {
+            deserializer.handler.returns(new Promise(function () {}))
+            autoFactory()
+            deserializer.timeout = 0
+            instance.initialize()
+            return instance
+              .proceed({})
+              .then(function (result) {
+                expect(result.status).to.eq(Status.Failed)
+                expect(result.error).to.be.instanceOf(TimeoutException)
               })
           })
         })

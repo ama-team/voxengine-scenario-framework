@@ -18,8 +18,8 @@ describe('Unit', function () {
               id: id,
               entrypoint: true,
               terminal: false,
-              transition: Normalizer.stateHandler(null, 'transition', {}),
-              abort: Normalizer.stateHandler(null, 'abort', {}),
+              transition: Normalizer.handler(null, 'transition', {}),
+              abort: Normalizer.handler(null, 'abort', {}),
               timeout: 10,
               triggers: {
                 id: 'terminal',
@@ -54,20 +54,11 @@ describe('Unit', function () {
           })
 
           it('provides default handler implementations', function () {
-            var error = new Error()
-            var result = Normalizer.state({}, id, {})
+            var result = Normalizer.state([], id, {})
             expect(result.transition.handler).not.to.throw()
             expect(result.abort.handler).not.to.throw()
-
-            var lambda = function () {
-              result.transition.onTimeout.handler(null, null, null, error)
-            }
-            expect(lambda).to.throw(error)
-
-            lambda = function () {
-              result.abort.onTimeout.handler(null, null, null, error)
-            }
-            expect(lambda).to.throw(error)
+            expect(result.transition).not.to.have.property('onTimeout')
+            expect(result.abort).not.to.have.property('onTimeout')
           })
 
           it('sets missing `.triggers` property to null', function () {

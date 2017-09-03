@@ -75,7 +75,9 @@ describe('Integration', function () {
           })
           terminalState = stateFactory('terminal', null, null, false, true)
           onError = Sinon.stub()
-          deserializer = Sinon.stub().returns({})
+          deserializer = {
+            handler: Sinon.stub().returns({})
+          }
           onTermination = handlerFactory('onTermination', function () {})
           options = {}
           scenarioAutoFactory()
@@ -141,7 +143,7 @@ describe('Integration', function () {
 
         it('doesn\'t run scenario stage if initialization has failed', function () {
           var error = new Error()
-          deserializer.throws(error)
+          deserializer.handler.throws(error)
           autoFactory()
           return run
             .execute({})
