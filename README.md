@@ -48,67 +48,72 @@ simplest scenario fo notifying clients by call:
 It can be easily represented as in code:
 
 ```js
-var states = {
-  entrypoint: {
-    entrypoint: true,
-    transition: function () {
-      var number = this.arguments.number
-      this.state.call = VoxEngine.callPSTN(number)
-    }
-  },
-  failed: {
-    transition: function () {
-      this.state.success = false
+var Framework = require('@ama-team/voxengine-scenario-framework')
+
+var scenario = {
+  trigger: Framework.TriggerType.Http,
+  states: {
+    entrypoint: {
+      entrypoint: true,
+      transition: function () {
+        var number = this.arguments.number
+        this.state.call = VoxEngine.callPSTN(number)
+      }
     },
-    triggers: {
-      id: 'terminated'
-    }
-  },
-  connected: {
-    transition: function () {
-      return new Promise(function (resolve) {
-        var call = VoxEngine.callPSTN(number)
-        this.state.call = call
-        call.addEventListener(CallEvents.Connected, function () {
-          resolve({trigger: 'communicated'})
-        })
-        call.addEventListener(CallEvents.Failed, function () {
-          this.state.success = false
-          resolve({transitionedTo: 'failed'})
-        })
-      })
-      var phrase = this.arguments.phrase
-      
-      return new Promise(function (resolve, reject) {
-        this.state.call.say(phrase, Language.US_ENGLISH_FEMALE)
-        this.state.call.addEventListener(CallEvents.PlaybackFinished, function() {
-          this.state.success = true
-          resolve({trigger: 'terminated'})
-        })
-      })
-    }
-  },
-  communicated: {
-    transition: function() {
-      return new Promise(function (resolve) {
-        this.state.call.say(phrase, Language.US_ENGLISH_FEMALE)
-        this.state.call.addEventListener(CallEvents.PlaybackFinished, function() {
-          this.state.call.hangup()
-          this.state.success = true
-          resolve()
-        })
-      })
+    failed: {
+      transition: function () {
+        this.state.success = false
+      },
+      triggers: {
+        id: 'terminated'
+      }
     },
-    triggers: {
-      id: 'terminated'
-    }
-  },
-  terminated: {
-    terminal: true,
-    transition: function () {
-      var options = new Net.HttpRequestOptions()
-      options.postData = JSON.stringify({success: this.state.success})
-      return Net.httpRequestAsync('http://some-backend', options)
+    connected: {
+      transition: function () {
+        return new Promise(function (resolve) {
+          var call = VoxEngine.callPSTN(number)
+          this.state.call = call
+          call.addEventListener(CallEvents.Connected, function () {
+            resolve({trigger: 'communicated'})
+          })
+          call.addEventListener(CallEvents.Failed, function () {
+            this.state.success = false
+            resolve({transitionedTo: 'failed'})
+          })
+        })
+        var phrase = this.arguments.phrase
+        
+        return new Promise(function (resolve, reject) {
+          this.state.call.say(phrase, Language.US_ENGLISH_FEMALE)
+          this.state.call.addEventListener(CallEvents.PlaybackFinished, function() {
+            this.state.success = true
+            resolve({trigger: 'terminated'})
+          })
+        })
+      }
+    },
+    communicated: {
+      transition: function() {
+        return new Promise(function (resolve) {
+          this.state.call.say(phrase, Language.US_ENGLISH_FEMALE)
+          this.state.call.addEventListener(CallEvents.PlaybackFinished, function() {
+            this.state.call.hangup()
+            this.state.success = true
+            resolve()
+          })
+        })
+      },
+      triggers: {
+        id: 'terminated'
+      }
+    },
+    terminated: {
+      terminal: true,
+      transition: function () {
+        var options = new Net.HttpRequestOptions()
+        options.postData = JSON.stringify({success: this.state.success})
+        return Net.httpRequestAsync('http://some-backend', options)
+      }
     }
   }
 }
@@ -121,15 +126,13 @@ to travel from one state to another; each transition may tell engine
 that it ended not so well, resulting in a completely another state.
 The scenario itself now boils only to crucial points (states) and
 possible outcomes during a transition. Beside that, framework also
-helps in apssing arguments inside scenario and cornering some sharp 
+helps in passing arguments inside scenario and cornering some sharp 
 edges. So, let's inspect what we have here.
 
 ## Scenario schema
 
-<sub><sup>
-// this section contains examples in YAML rather than in javascript 
-for higher readability
-</sup></sup>
+*this section contains examples in YAML rather than in javascript 
+for higher readability*
 
 First of all, scenario has three auxiliary properties describing 
 itself. They are completely optional, but will save you a lot of 
@@ -206,14 +209,14 @@ var states = {
   preterminal: {
     transition: function () {
       return {trigger: {id: 'terminal', hints: {sendDebugInfo: true}}}
-    },
+    }
   },
   terminal: {
     transition: function (previous, hints) {
       if (hints.sendDebugInfo) {
         // Do something
       }
-    },
+    }
   }
 }
 ```
@@ -236,7 +239,7 @@ The third argument is an advanced aspect discussed later.
 
 ## The context
 
-All use-suppleid code is executed inside the context - that means that
+All user-supplied code is executed inside the context - that means that
 same specific object will be passed as `this`. This object has 
 following properties:
 
@@ -251,6 +254,15 @@ notice: <function<message, ...replacements>>
 warn: <function<message, ...replacements>>
 error: <function<message, ...replacements>>
 ```
+
+Logger methods are forwarded to Slf4j-alike logger from 
+[@ama-team/voxengine-sdk][]. It has a nice feature of resolving
+`{}` placeholders into arguments, so 
+```js
+this.warn('{} has jumped over {}', 'quick fox', 'lazy dog')
+````
+
+Will result in a phrase you've seen a thousand times. 
 
 ## Non-triggering states / coding outside of the box
 
@@ -269,15 +281,26 @@ var state = {
 }
 ```
 
-This also means scenario may hang in near-infinity in some state until 
-VoxEngine kicks whole execution out.
+This also means scenario may hang near-infinite in some state until 
+VoxEngine kicks whole scenario out, so be careful playing with this.
 
 If `.transitionTo()` is called during another transition, previous 
 transition gets aborted: it's abort handler is called, and it's 
 cancellation token (third argument) gets cancelled. Because there is no 
 direct way to abort running code, transition that may be abort should 
 regularly check if token has been cancelled (`token.isCancelled()`) 
-before proceeding further.
+before proceeding further:
+
+```js
+var httpCallsMadeState = function (p, h, token) {
+  var valueA = client.performRequest()
+  return client
+    .performRequest('/ping')
+    .then(function () {
+      return token.isCancelled() ? null : client.performRequest('/pong')
+    })
+}
+```
 
 ## Arguments
 
@@ -344,6 +367,9 @@ var scenario = {
 Termination handler acts the very same as other handlers, but receives
 `TInitializationStageResult` and `TScenarioStageResult` as arguments.
 
+Framework will call VoxEngine.terminate after everything has been done,
+so it's not necessary to do it manually.
+
 ## Errors and error handling
 
 There are several places when error may be thrown:
@@ -385,12 +411,12 @@ Slf4j.setLevel(Logger.Level.Warn)
 Slf4j.setLevel('ama-team.vsf.context', Logger.Level.Debug)
 ```
 
-By default, all INFO and higher level messages should be logged.
+By default, all INFO and higher level messages are logged.
 
 ## Validation
 
 To prevent invalid scenario from uploading, you may validate it first.
-To do so, just run `Framework.validate` to receive a `TValidationSet`
+To do so, just run `Framework.validate` to receive a `ValidationSet`
 object. If it's severity is 
 `Framework.Schema.Validator.Severity.Fatal`, scenario is invalid and 
 can't be used.
@@ -402,6 +428,9 @@ engineers confirmed that this model is used by their interpreter.
 
 ## Other notes
 
+- **Do not use VoxEngine.easyProcess.** It will terminate scenario 
+prematurely, as it 
+[binds onto VoxEngine.terminate](http://voximplant.com/help/faq/what-code-is-behind-voxengine-easyprocess-function/).
 - Please note that at the moment of this document being written ES6
 **had not been supported by VoxImplant**. While you can use transpiler
 to transform your scripts to ES5, i personally recommend not to use
