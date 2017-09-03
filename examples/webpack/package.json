@@ -12,7 +12,8 @@
     "@ama-team/voxengine-scenario-framework": "file:../.."
   },
   "devDependencies": {
-    "webpack": "^3.5.5",
-    "uglify-loader": "^2.0.0"
+    "stripcomment-loader": "^0.1.0",
+    "uglify-loader": "^2.0.0",
+    "webpack": "^3.5.5"
   }
 }

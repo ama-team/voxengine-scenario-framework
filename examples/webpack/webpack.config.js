@@ -18,6 +18,10 @@ module.exports = {
           return path.split(/[\/\\]/).indexOf('node_modules') > -1
         },
         use: 'uglify-loader'
+      },
+      {
+        test: /\.js$/,
+        use: 'stripcomment-loader'
       }
     ]
   }
