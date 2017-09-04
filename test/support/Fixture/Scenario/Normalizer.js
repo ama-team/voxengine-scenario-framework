@@ -32,6 +32,9 @@ var Normalizer = {
     Object.keys(scenario.states).forEach(function (id) {
       var state = scenario.states[id]
       var handlers = ['transition', 'abort']
+      if (Objects.isFunction(state)) {
+        state = {transition: state}
+      }
       handlers.forEach(function (handler) {
         state[handler] = Normalizer.handler(state[handler], handler)
       })

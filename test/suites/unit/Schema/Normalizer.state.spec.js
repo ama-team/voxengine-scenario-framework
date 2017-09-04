@@ -77,6 +77,18 @@ describe('Unit', function () {
             expect(triggers).to.have.property('id').eq(state.triggers)
             expect(triggers).to.have.property('hints').deep.eq({})
           })
+
+          it('normalizes function into state with transition handler', function () {
+            var state = function () {}
+            var timeout = 10
+            var timeouts = {transition: timeout}
+            var result = Normalizer.state(state, id, timeouts)
+            expect(result).to.be.an('object')
+            expect(result).to.have.property('id').eq(id)
+            expect(result).to.have.property('transition').an('object')
+            expect(result.transition).to.have.property('handler').eq(state)
+            expect(result.transition).to.have.property('timeout').eq(timeout)
+          })
         })
       })
     })

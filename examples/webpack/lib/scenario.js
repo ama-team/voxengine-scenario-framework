@@ -58,7 +58,7 @@ var scenario = {
     }
   },
   onTermination: function () {
-    this.info('onTermination hook running')
+    this.info('onTermination hook is running')
   }
 }
 

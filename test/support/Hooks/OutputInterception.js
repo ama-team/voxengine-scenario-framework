@@ -32,15 +32,19 @@ var interceptors = {
   stderr: null
 }
 
-beforeEach(function () {
-  Object.keys(interceptors).forEach(function (stream) {
-    interceptors[stream] = new StreamInterceptor(process[stream]).initialize()
-  })
-})
+module.exports = {
+  setup: function () {
+    beforeEach(function () {
+      Object.keys(interceptors).forEach(function (stream) {
+        interceptors[stream] = new StreamInterceptor(process[stream]).initialize()
+      })
+    })
 
-afterEach(function () {
-  Object.keys(interceptors).forEach(function (stream) {
-    var interceptor = interceptors[stream]
-    interceptor.stop().flush(stream + '.log')
-  })
-})
+    afterEach(function () {
+      Object.keys(interceptors).forEach(function (stream) {
+        var interceptor = interceptors[stream]
+        interceptor.stop().flush(stream + '.log')
+      })
+    })
+  }
+}

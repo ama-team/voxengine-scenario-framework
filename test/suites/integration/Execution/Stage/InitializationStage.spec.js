@@ -57,8 +57,8 @@ describe('Unit', function () {
               .proceed(trigger)
               .then(function (result) {
                 expect(result.status).to.eq(Status.Finished)
-                expect(result.error).to.be.null
-                expect(result.log).to.eq(log)
+                expect(result.value).to.be.null
+                expect(context.log).to.eq(log)
                 expect(deserializer.handler.callCount).to.eq(1)
                 expect(context.arguments).to.deep.eq(argExpectation)
               })
@@ -75,8 +75,8 @@ describe('Unit', function () {
               .proceed({})
               .then(function (result) {
                 expect(result.status).to.eq(Status.Failed)
-                expect(result.error).to.eq(error)
-                expect(result.log).to.eq(log)
+                expect(result.value).to.eq(error)
+                expect(context.log).to.eq(log)
                 expect(deserializer.handler.callCount).to.eq(1)
               })
           })
@@ -90,7 +90,22 @@ describe('Unit', function () {
               .proceed({})
               .then(function (result) {
                 expect(result.status).to.eq(Status.Failed)
-                expect(result.error).to.be.instanceOf(TimeoutException)
+                expect(result.value).to.be.instanceOf(TimeoutException)
+              })
+          })
+
+          it('catches internal error', function () {
+            var error = new Error()
+            var setter = Sinon.stub().throws(error)
+            // eslint-disable-next-line accessor-pairs
+            Object.defineProperty(context, 'arguments', {set: setter})
+            autoFactory()
+            instance.initialize()
+            return instance
+              .proceed({})
+              .then(function (result) {
+                expect(result.status).to.eq(Status.Tripped)
+                expect(result.value).to.eq(error)
               })
           })
         })

@@ -1,4 +1,4 @@
-var Schema = require('../../../../lib/Schema/index')
+var Schema = require('../../../../lib/Schema')
 var TriggerType = Schema.TriggerType
 var OperationStatus = Schema.OperationStatus
 var hints = {

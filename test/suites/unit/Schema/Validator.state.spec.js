@@ -52,6 +52,11 @@ describe('Unit', function () {
             }
             expect(Validator.state(input).violations).to.be.empty
           })
+
+          it('doesn\'t report violation if function is passed', function () {
+            var input = function () {}
+            expect(Validator.state(input).violations).to.be.empty
+          })
         })
       })
     })

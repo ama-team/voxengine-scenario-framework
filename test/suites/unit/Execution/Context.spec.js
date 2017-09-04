@@ -57,6 +57,24 @@ describe('Unit', function () {
           })
         })
 
+        describe('#logger', function () {
+          methods.forEach(function (method) {
+            it('accepts calls for #' + method + '()', function () {
+              var logger = {}
+              var stub = Sinon.stub()
+              logger[method] = stub
+              var context = new Context({})
+              var args = ['message {} {}', 1, 2]
+              context.logger = logger
+
+              context[method].apply(context, args)
+              expect(stub.callCount).to.eq(1)
+              expect(stub.getCall(0).args).to.deep.eq(args)
+              expect(stub.getCall(0).thisValue).to.eq(logger)
+            })
+          })
+        })
+
         describe('#transitionTo()', function () {
           it('passes call to execution machine object', function () {
             var result = {x: 12}

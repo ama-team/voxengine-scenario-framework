@@ -155,6 +155,23 @@ describe('Integration', function () {
               expect(result.stages.termination.status).to.eq(Status.Finished)
             })
         })
+
+        it('runs termination stage if scenario stage has failed', function () {
+          var error = new Error()
+          entrypointState.transition.handler = function () {
+            throw error
+          }
+          autoFactory()
+          run.initialize()
+          return run
+            .proceed(trigger)
+            .then(function (result) {
+              expect(result.status).to.eq(Status.Failed)
+              expect(result.stages.initialization.status).to.eq(Status.Finished)
+              expect(result.stages.scenario.status).to.eq(Status.Failed)
+              expect(result.stages.termination.status).to.eq(Status.Finished)
+            })
+        })
       })
     })
   })

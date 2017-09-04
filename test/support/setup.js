@@ -1,6 +1,10 @@
 /* eslint-env mocha */
 
-require('./Hooks/VoxEngineStubs')
-require('./Hooks/RejectionHandling')
-require('./Hooks/OutputInterception')
-require('./Hooks/SDKLogger')
+module.exports = {
+  setup: function () {
+    require('./Hooks/VoxEngineStubs').setup()
+    require('./Hooks/RejectionHandling').setup()
+    require('./Hooks/OutputInterception').setup()
+    require('./Hooks/SDKLogger').setup()
+  }
+}
