@@ -43,7 +43,7 @@ simplest scenario fo notifying clients by call:
 1. Target phone number called
 2. Call failed, go to #5
 3. Call succeeded, go to #4
-3. Say the phrase then go to #5
+3. Say the phrase, then go to #5
 4. Report to HTTP backend and terminate
 
 It can be easily represented as in code:
@@ -63,11 +63,10 @@ var scenario = {
       }
     },
     failed: {
-      transition: function () {
-        this.state.success = false
-      },
+      transition: function () {},
       triggers: {
-        id: 'terminated'
+        id: 'terminated',
+        hints: {success: false}
       }
     },
     connected: {
@@ -79,7 +78,6 @@ var scenario = {
             resolve({trigger: 'communicated'})
           })
           call.addEventListener(CallEvents.Failed, function () {
-            this.state.success = false
             resolve({transitionedTo: 'failed'})
           })
         })
@@ -98,14 +96,15 @@ var scenario = {
         })
       },
       triggers: {
-        id: 'terminated'
+        id: 'terminated',
+        hints: {success: true}
       }
     },
     terminated: {
       terminal: true,
-      transition: function () {
+      transition: function (_, hints) {
         var options = new Net.HttpRequestOptions()
-        options.postData = JSON.stringify({success: this.state.success})
+        options.postData = JSON.stringify({success: hints.success})
         return Net.httpRequestAsync('http://some-backend', options)
       }
     }
@@ -164,6 +163,8 @@ trigger: <Framework.TriggerType>
 arguments: <object, optional>
 # default context state, doesn't relate to states discussed above
 state: <object, optional>
+# DI-wannabe container wih services you may like to use in transitions
+container: <object, optional> 
 onTermination: <handler, optional>
 onError: <handler, optional>
 # used to deserialize arguments from custom data
@@ -234,6 +235,39 @@ context in the moment of trigger processing.
 
 The third argument is an advanced aspect discussed later.
 
+## Storing states between the states
+
+End user will certainly need to store some data between states (e.g.
+call instances), and there are two options for that. First, you may
+go with standard javascript way of enclosing scopes: you may define
+`var` outside of scenario:
+
+```js
+var call
+var scenario = {
+  states: {
+    entrypoint: function () {
+      call = VoxEngine.callPSTN('911')
+    }
+  }
+}
+```
+
+However, if you want to isolate your handlers, `this.state` context
+property can be used for that:
+
+```js
+var scenario = {
+  states: {
+    entrypoint: function () {
+      this.state.call = VoxEngine.callPSTN('911')
+    }
+  }
+}
+```
+
+It's completely up to you which way to choose.
+
 ## The context
 
 All user-supplied code is executed inside the context - that means that
@@ -243,7 +277,10 @@ following properties:
 ```yml
 arguments: <object>
 state: <object>
+container: <object>
 trigger: <TScenarioTrigger>
+# log url
+log: <string>
 transitionTo: <function<string, hints>>
 trace: <function<message, ...replacements>>
 debug: <function<message, ...replacements>>
@@ -267,9 +304,9 @@ more information on the [library page][@ama-team/voxengine-sdk].
 ## Non-triggering states / coding outside of the box
 
 Basically, the term state itself doesn't imply that there is any kind
-immediate transition to another state. In case transition doesn't
+of immediate transition to another state. In case transition doesn't
 return the `{trigger: something}` structure and there is no `.triggers`
-property on the state, the framework will state in specific state until
+property on the state, the framework will stay in specific state until
 something calls the `.transitionTo` method on context:
 
 ```js
@@ -283,12 +320,16 @@ var state = {
 
 This also means scenario may hang near-infinite in some state until 
 VoxEngine kicks whole scenario out, so be careful playing with this.
+Currently, scenario/state timeouts are not supported, and i don't
+know how to implement them properly (because in 95%+ of cases it
+would be necessary to take some action on timeout rather than just
+terminate whole scenario).
 
 If `.transitionTo()` is called during another transition, previous 
 transition gets aborted: it's abort handler is called, and it's 
 cancellation token (third argument) gets cancelled. Because there is no 
-direct way to abort running code, transition that may be abort should 
-regularly check if token has been cancelled (`token.isCancelled()`) 
+direct way to abort running code, transition that may be aborted should 
+regularly check if it's token has been cancelled (`token.isCancelled()`) 
 before proceeding further:
 
 ```js
@@ -310,10 +351,17 @@ property. Framework will take hardcoded arguments, apply deserializer
 on customData (either VoxEngine.customData or call.customData, 
 depending on scenario trigger type), and then recursively merge them.
 Please note that if deserializer fails (throws error or returns 
-rejected thenable), the whole scenario will be aborted.
+rejected thenable), the whole scenario will be aborted. Deserializer
+is **allowed** to take some time and return a promise (basically, it's
+a regular `handler` with possible timeout and stuff), so you can 
+perform HTTP calls inside.
 
 By default, framework will try to decode JSON out of customData and
 silently proceed on fail.
+
+Please note that VoxEngine docs [state][VoxEngine.customData] that 
+there is 200-byte limit on custom data, so if you need a lot of data, 
+it's better just to store it using HTTP backend and pass only ID.
 
 ## Timeouts
 
@@ -366,8 +414,8 @@ var scenario = {
 Termination handler acts the very same as other handlers, but receives
 `TInitializationStageResult` and `TScenarioStageResult` as arguments.
 
-Framework will call VoxEngine.terminate after everything has been done,
-so it's not necessary to do it manually.
+Framework calls VoxEngine.terminate in the end, if `behavior.terminate`
+option is set to true (which is by default).
 
 ## Errors and error handling
 
@@ -428,8 +476,7 @@ engineers confirmed that this model is used by their interpreter.
 ## Other notes
 
 - **Do not use VoxEngine.easyProcess.** It will terminate scenario 
-prematurely, as it 
-[binds onto VoxEngine.terminate](http://voximplant.com/help/faq/what-code-is-behind-voxengine-easyprocess-function/).
+prematurely, as it [binds onto VoxEngine.terminate][VoxEngine.easyProcess]
 - Please note that at the moment of this document being written ES6
 **had not been supported by VoxImplant**. While you can use transpiler
 to transform your scripts to ES5, i personally recommend not to use
@@ -451,3 +498,5 @@ web UI.
 [![Scrutinizer/Dev](https://img.shields.io/scrutinizer/g/ama-team/voxengine-scenario-framework/dev.svg?style=flat-square)](https://scrutinizer-ci.com/g/ama-team/voxengine-scenario-framework?branch=dev)
 
   [@ama-team/voxengine-sdk]: https://npmjs.org/package/@ama-team/voxengine-sdk
+  [VoxEngine.customData]: https://voximplant.com/docs/references/appengine/VoxEngine.html#VoxEngine_customData
+  [VoxEngine.easyProcess]: http://voximplant.com/help/faq/what-code-is-behind-voxengine-easyprocess-function/
