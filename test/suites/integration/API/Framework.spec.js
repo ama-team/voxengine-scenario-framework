@@ -58,6 +58,14 @@ describe('Integration', function () {
           it('returns a run otherwise', function () {
             expect(framework.prepare(scenario)).to.be.instanceOf(Run)
           })
+
+          it('passes scenario service container to context', function () {
+            var container = {x: 12}
+            scenario.container = container
+            var run = framework.prepare(scenario)
+            var context = run.getExecutor().getContext()
+            expect(context).to.have.property('container').deep.eq(container)
+          })
         })
 
         describe('#execute()', function () {
