@@ -114,6 +114,7 @@ workflows:
             tags:
               only: /.*/
       - publish:
+          context: org-global
           requires:
             - build
           filters:

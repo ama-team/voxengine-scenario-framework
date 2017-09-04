@@ -4,7 +4,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/) 
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
-## [Unreleased]
+## [0.2.0] - 04-09-2017
+### Added
+- Webpack example
 ### Changed
 - Full rewrite, scenario schema has been tweaked a little bit,
 most concepts stayed the same.
