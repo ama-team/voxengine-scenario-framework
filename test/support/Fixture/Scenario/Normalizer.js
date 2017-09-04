@@ -40,7 +40,8 @@ var Normalizer = {
       })
       scenario.states[id] = state
     })
-    scenario.deserializer = scenario.deserializer || Deserializer
+    // TODO: pass logger options
+    scenario.deserializer = scenario.deserializer || Deserializer.factory()
     var handlers = ['deserializer', 'onError', 'onTermination']
     handlers.forEach(function (handler) {
       scenario[handler] = Normalizer.handler(scenario[handler], handler)
