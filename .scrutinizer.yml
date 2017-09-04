@@ -2,4 +2,4 @@ checks:
   javascript: true
 filter:
   paths:
-    - lib
+    - 'lib/*'
