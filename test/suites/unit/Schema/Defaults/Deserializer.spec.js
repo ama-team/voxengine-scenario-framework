@@ -10,22 +10,29 @@ describe('Unit', function () {
   describe('/Schema', function () {
     describe('/Defaults', function () {
       describe('/Deserializer.js', function () {
-        it('returns empty object for falsey value', function () {
-          expect(Deserializer(false)).to.deep.eq({})
-        })
+        describe('.factory()', function () {
+          var deserializer
+          beforeEach(function () {
+            deserializer = Deserializer.factory()
+          })
 
-        it('returns empty object for empty string', function () {
-          expect(Deserializer('')).to.deep.eq({})
-        })
+          it('returns empty object for falsey value', function () {
+            expect(deserializer(false)).to.deep.eq({})
+          })
 
-        it('parses invalid json as customData object', function () {
-          var input = '{"beginning":'
-          expect(Deserializer(input)).to.deep.eq({customData: input})
-        })
+          it('returns empty object for empty string', function () {
+            expect(deserializer('')).to.deep.eq({})
+          })
 
-        it('parses valid json as it\'s contents', function () {
-          var input = {x: 12}
-          expect(Deserializer(JSON.stringify(input))).to.deep.eq(input)
+          it('parses invalid json as customData object', function () {
+            var input = '{"beginning":'
+            expect(deserializer(input)).to.deep.eq({customData: input})
+          })
+
+          it('parses valid json as it\'s contents', function () {
+            var input = {x: 12}
+            expect(deserializer(JSON.stringify(input))).to.deep.eq(input)
+          })
         })
       })
     })

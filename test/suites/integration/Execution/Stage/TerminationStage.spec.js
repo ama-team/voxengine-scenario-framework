@@ -60,16 +60,17 @@ describe('Unit', function () {
             })
 
             it('passes argument to provided termination handler', function () {
-              // TODO: there are two arguments from now on
               var termination = autoFactory()
-              var argument = {x: 12}
+              var argumentA = {x: 12}
+              var argumentB = {y: 13}
               return termination
-                .run(argument)
+                .run(argumentA, argumentB)
                 .then(function (result) {
                   expect(result.status).to.eq(OperationStatus.Finished)
                   var handler = handlerStructure.handler
                   expect(handler.callCount).to.eq(1)
-                  expect(handler.getCall(0).args[0]).to.eq(argument)
+                  expect(handler.getCall(0).args[0]).to.eq(argumentA)
+                  expect(handler.getCall(0).args[1]).to.eq(argumentB)
                 })
             })
 
@@ -78,16 +79,18 @@ describe('Unit', function () {
               handler = function () {
                 return new Promise(function () {})
               }
-              var argument = {x: 12}
+              var argumentA = {x: 12}
+              var argumentB = {y: 13}
               var termination = autoFactory()
               return termination
-                .run(argument)
+                .run(argumentA, argumentB)
                 .then(function (result) {
                   expect(result.status).to.eq(OperationStatus.Finished)
                   var handler = handlerStructure.onTimeout.handler
                   expect(handler.callCount).to.eq(1)
-                  expect(handler.getCall(0).args[0]).to.eq(argument)
-                  expect(handler.getCall(0).args[2]).to.be.instanceOf(TimeoutException)
+                  expect(handler.getCall(0).args[0]).to.eq(argumentA)
+                  expect(handler.getCall(0).args[1]).to.eq(argumentB)
+                  expect(handler.getCall(0).args[3]).to.be.instanceOf(TimeoutException)
                 })
             })
 

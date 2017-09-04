@@ -5,7 +5,6 @@ var Chai = require('chai')
 var expect = Chai.expect
 
 var Normalizer = require('../../../../lib/Schema/Normalizer').Normalizer
-var Deserializer = require('../../../../lib/Schema/Defaults').Deserializer
 
 describe('Unit', function () {
   describe('/Schema', function () {
@@ -15,19 +14,19 @@ describe('Unit', function () {
           it('replaces falsey value', function () {
             var input = false
             var result = Normalizer.deserializer(input, {})
-            expect(result).to.have.property('handler').eq(Deserializer)
+            expect(result).to.have.property('handler').instanceOf(Function)
           })
 
           it('fills empty object', function () {
             var input = {}
             var result = Normalizer.deserializer(input, {})
-            expect(result).to.have.property('handler').eq(Deserializer)
+            expect(result).to.have.property('handler').instanceOf(Function)
           })
 
           it('fills falsey $.handler property', function () {
             var input = {handler: false}
             var result = Normalizer.deserializer(input, {})
-            expect(result).to.have.property('handler').eq(Deserializer)
+            expect(result).to.have.property('handler').instanceOf(Function)
           })
 
           it('wraps provided function', function () {
