@@ -1,13 +1,14 @@
 # Node files
 npm-debug.log
 node_modules
+package-lock.json
 
-# Artifacts
-build
+# Tests & Artifacts
+test
 tmp
 
 # Repo control
-jake
+Jakefile
 tasks
 
 # IDE files
