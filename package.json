@@ -1,6 +1,6 @@
 {
   "name": "@ama-team/voxengine-scenario-framework",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Framework to run VoxImplant scenarios",
   "main": "lib/index.js",
   "scripts": {
